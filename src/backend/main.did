@@ -1,0 +1,63 @@
+type _CaffeineStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _CaffeineStorageRefillInformation = record {
+                                           proposed_top_up_amount: opt nat;};
+type _CaffeineStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type Post = 
+ record {
+   author: text;
+   category: text;
+   content: text;
+   coverImageUrl: text;
+   createdAt: int;
+   excerpt: text;
+   id: nat;
+   isPublished: bool;
+   publishedAt: int;
+   slug: text;
+   tags: vec text;
+   title: text;
+ };
+type Comment = 
+ record {
+   authorName: text;
+   content: text;
+   createdAt: int;
+   id: nat;
+   postId: nat;
+ };
+service : {
+  _caffeineStorageBlobIsLive: (hash: blob) -> (bool) query;
+  _caffeineStorageBlobsToDelete: () -> (vec blob) query;
+  _caffeineStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _caffeineStorageCreateCertificate: (blobHash: text) ->
+   (_CaffeineStorageCreateCertificateResult);
+  _caffeineStorageRefillCashier: (refillInformation:
+   opt _CaffeineStorageRefillInformation) -> (_CaffeineStorageRefillResult);
+  _caffeineStorageUpdateGatewayPrincipals: () -> ();
+  addComment: (postId: nat, authorName: text, content: text) -> (Comment);
+  createPost: (title: text, slug: text, excerpt: text, content: text,
+   category: text, coverImageUrl: text, author: text, tags: vec text) ->
+   (Post);
+  deletePost: (id: nat) -> (bool);
+  getAllPosts: () -> (vec Post) query;
+  getCategories: () -> (vec text) query;
+  getCommentsByPostId: (postId: nat) -> (vec Comment) query;
+  getPostById: (id: nat) -> (opt Post) query;
+  getPostBySlug: (slug: text) -> (opt Post) query;
+  getPostsByCategory: (category: text) -> (vec Post) query;
+  getPublishedPosts: () -> (vec Post) query;
+  publishPost: (id: nat) -> (opt Post);
+  seedData: () -> ();
+  unpublishPost: (id: nat) -> (opt Post);
+  updatePost: (id: nat, title: text, slug: text, excerpt: text, content:
+   text, category: text, coverImageUrl: text, author: text, tags:
+   vec text) -> (opt Post);
+}

@@ -1,0 +1,1409 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { Link } from "@tanstack/react-router";
+import {
+  ArrowLeft,
+  Check,
+  Clipboard,
+  Edit,
+  Eye,
+  EyeOff,
+  FileText,
+  Leaf,
+  Loader2,
+  MessageSquare,
+  Plus,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import SiteFooter from "../components/SiteFooter";
+import SiteHeader from "../components/SiteHeader";
+import {
+  deleteComment,
+  deletePost,
+  getAllComments,
+  getPosts,
+  updateCommentStatus,
+  upsertPost,
+} from "../lib/storage";
+import type { BlogPost, Comment, InlineImage } from "../types";
+import { CATEGORIES } from "../types";
+
+// ─────────────── helpers ───────────────────────────────────────────────────
+
+function generateId() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function slugify(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim();
+}
+
+function formatDate(dateStr: string | null) {
+  if (!dateStr) return "—";
+  try {
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ─────────────── types ─────────────────────────────────────────────────────
+
+interface PostFormData {
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  category: string;
+  coverImageUrl: string;
+  authorName: string;
+  tags: string;
+  publishImmediately: boolean;
+  scheduledDate: string;
+  status: "draft" | "published";
+  inlineImages: InlineImage[];
+}
+
+const EMPTY_FORM: PostFormData = {
+  title: "",
+  slug: "",
+  excerpt: "",
+  content: "",
+  category: "",
+  coverImageUrl: "",
+  authorName: "AyurGlow Team",
+  tags: "",
+  publishImmediately: true,
+  scheduledDate: "",
+  status: "draft",
+  inlineImages: [],
+};
+
+type View = "list" | "create" | "edit";
+
+// ─────────────── main component ────────────────────────────────────────────
+
+export default function AdminPage() {
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [view, setView] = useState<View>("list");
+  const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
+  const [form, setForm] = useState<PostFormData>(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [inlineUploading, setInlineUploading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Inline image form
+  const [inlineImgFile, setInlineImgFile] = useState<string>("");
+  const [inlineImgSize, setInlineImgSize] =
+    useState<InlineImage["size"]>("medium");
+  const [inlineImgAlt, setInlineImgAlt] = useState("");
+  const [inlineImgCaption, setInlineImgCaption] = useState("");
+  const inlineFileRef = useRef<HTMLInputElement>(null);
+
+  const refreshData = useCallback(() => {
+    setPosts(getPosts());
+    setComments(getAllComments());
+  }, []);
+
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+
+  // Auto-generate slug from title
+  const handleTitleChange = (value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      title: value,
+      slug:
+        prev.slug === "" || prev.slug === slugify(prev.title)
+          ? slugify(value)
+          : prev.slug,
+    }));
+  };
+
+  const handleEditPost = (post: BlogPost) => {
+    setEditingPost(post);
+    setForm({
+      title: post.title,
+      slug: post.slug,
+      excerpt: post.excerpt,
+      content: post.content,
+      category: post.category,
+      coverImageUrl: post.coverImageUrl,
+      authorName: post.authorName,
+      tags: post.tags.join(", "),
+      publishImmediately: false,
+      scheduledDate: post.publishedAt
+        ? new Date(post.publishedAt).toISOString().slice(0, 16)
+        : "",
+      status: post.status,
+      inlineImages: post.inlineImages ?? [],
+    });
+    setView("edit");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleNewPost = () => {
+    setEditingPost(null);
+    setForm(EMPTY_FORM);
+    setView("create");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleCancel = () => {
+    setView("list");
+    setEditingPost(null);
+    setForm(EMPTY_FORM);
+    refreshData();
+  };
+
+  // Cover image upload
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setCoverUploading(true);
+    try {
+      const b64 = await fileToBase64(file);
+      setForm((prev) => ({ ...prev, coverImageUrl: b64 }));
+      toast.success("Cover image uploaded");
+    } catch {
+      toast.error("Failed to upload image");
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  // Inline image upload
+  const handleInlineUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setInlineUploading(true);
+    try {
+      const b64 = await fileToBase64(file);
+      setInlineImgFile(b64);
+      toast.success("Image ready to add");
+    } catch {
+      toast.error("Failed to load image");
+    } finally {
+      setInlineUploading(false);
+    }
+  };
+
+  const handleAddInlineImage = () => {
+    if (!inlineImgFile) {
+      toast.error("Please upload an image first");
+      return;
+    }
+    const img: InlineImage = {
+      id: generateId(),
+      url: inlineImgFile,
+      size: inlineImgSize,
+      alt: inlineImgAlt,
+      caption: inlineImgCaption,
+    };
+    setForm((prev) => ({
+      ...prev,
+      inlineImages: [...prev.inlineImages, img],
+    }));
+    setInlineImgFile("");
+    setInlineImgAlt("");
+    setInlineImgCaption("");
+    setInlineImgSize("medium");
+    if (inlineFileRef.current) inlineFileRef.current.value = "";
+    toast.success("Image added to post");
+  };
+
+  const handleRemoveInlineImage = (id: string) => {
+    setForm((prev) => ({
+      ...prev,
+      inlineImages: prev.inlineImages.filter((img) => img.id !== id),
+    }));
+  };
+
+  const handleUpdateInlineImageSize = (
+    id: string,
+    size: InlineImage["size"],
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      inlineImages: prev.inlineImages.map((img) =>
+        img.id === id ? { ...img, size } : img,
+      ),
+    }));
+  };
+
+  const handleCopyEmbedCode = (img: InlineImage) => {
+    const _code = `<img src="${img.url.substring(0, 50)}..." class="post-image-${img.size}" alt="${img.alt}" />`;
+    navigator.clipboard.writeText(
+      `<img src="[uploaded-image]" class="post-image-${img.size}" alt="${img.alt}" />`,
+    );
+    setCopiedId(img.id);
+    setTimeout(() => setCopiedId(null), 2000);
+    toast.success("Embed code copied to clipboard");
+  };
+
+  const handleSubmit = async () => {
+    if (!form.title || !form.slug || !form.category || !form.authorName) {
+      toast.error("Please fill in Title, Slug, Category, and Author");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const now = new Date().toISOString();
+      const tags = form.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      let publishedAt: string | null = null;
+      let status: "draft" | "published" = "draft";
+
+      if (form.publishImmediately) {
+        publishedAt = now;
+        status = "published";
+      } else if (form.scheduledDate) {
+        publishedAt = new Date(form.scheduledDate).toISOString();
+        status = "published";
+      } else {
+        status = form.status;
+        publishedAt = editingPost?.publishedAt ?? null;
+      }
+
+      const post: BlogPost = {
+        id: editingPost?.id ?? generateId(),
+        title: form.title,
+        slug: form.slug,
+        excerpt: form.excerpt,
+        content: form.content,
+        category: form.category,
+        coverImageUrl: form.coverImageUrl,
+        authorName: form.authorName,
+        tags,
+        status,
+        publishedAt,
+        createdAt: editingPost?.createdAt ?? now,
+        updatedAt: now,
+        inlineImages: form.inlineImages,
+      };
+
+      upsertPost(post);
+      toast.success(
+        view === "edit"
+          ? "Post updated successfully!"
+          : status === "published"
+            ? "Post published!"
+            : "Post saved as draft!",
+      );
+      setView("list");
+      setEditingPost(null);
+      setForm(EMPTY_FORM);
+      refreshData();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save post");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleTogglePublish = (post: BlogPost) => {
+    const now = new Date().toISOString();
+    const updated: BlogPost = {
+      ...post,
+      status: post.status === "published" ? "draft" : "published",
+      publishedAt:
+        post.status === "published"
+          ? post.publishedAt
+          : (post.publishedAt ?? now),
+      updatedAt: now,
+    };
+    upsertPost(updated);
+    refreshData();
+    toast.success(
+      updated.status === "published" ? "Post published!" : "Post unpublished",
+    );
+  };
+
+  const handleDeletePost = (id: string) => {
+    deletePost(id);
+    refreshData();
+    toast.success("Post deleted");
+  };
+
+  const handleApproveComment = (id: string) => {
+    updateCommentStatus(id, "approved");
+    refreshData();
+    toast.success("Comment approved");
+  };
+
+  const handleDeleteComment = (id: string) => {
+    deleteComment(id);
+    refreshData();
+    toast.success("Comment deleted");
+  };
+
+  const publishedCount = posts.filter((p) => p.status === "published").length;
+  const draftCount = posts.filter((p) => p.status === "draft").length;
+  const pendingComments = comments.filter((c) => c.status === "pending");
+  const approvedComments = comments.filter((c) => c.status === "approved");
+
+  return (
+    <div className="min-h-screen flex flex-col botanical-bg">
+      <SiteHeader />
+
+      <main className="flex-1">
+        {/* Admin header */}
+        <div className="py-12" style={{ background: "oklch(0.20 0.06 195)" }}>
+          <div className="container mx-auto px-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Leaf
+                    className="h-4 w-4"
+                    style={{ color: "oklch(0.76 0.14 85)" }}
+                  />
+                  <span
+                    className="text-xs uppercase tracking-[0.2em] font-semibold"
+                    style={{ color: "oklch(0.76 0.14 85)" }}
+                  >
+                    Content Management
+                  </span>
+                </div>
+                <h1
+                  className="font-display text-3xl sm:text-4xl font-bold"
+                  style={{ color: "oklch(0.97 0.01 148)" }}
+                >
+                  Admin Panel
+                </h1>
+              </div>
+              <Link to="/">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5"
+                  style={{ color: "oklch(0.80 0.05 175)" }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  View Site
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="container mx-auto px-4 py-8">
+          <AnimatePresence mode="wait">
+            {view === "list" ? (
+              <motion.div
+                key="list"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25 }}
+              >
+                <Tabs defaultValue="posts">
+                  <div className="flex items-center justify-between mb-4">
+                    <TabsList>
+                      <TabsTrigger value="posts" className="gap-1.5">
+                        <FileText className="h-3.5 w-3.5" />
+                        Posts
+                        <span className="text-xs">({posts.length})</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="comments" className="gap-1.5">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Comments
+                        {pendingComments.length > 0 && (
+                          <span
+                            className="ml-1 text-xs px-1.5 py-0.5 rounded-full font-bold"
+                            style={{
+                              background: "oklch(0.577 0.245 27.325)",
+                              color: "white",
+                            }}
+                          >
+                            {pendingComments.length}
+                          </span>
+                        )}
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <Button
+                      onClick={handleNewPost}
+                      style={{
+                        background: "oklch(0.42 0.12 195)",
+                        color: "white",
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Post
+                    </Button>
+                  </div>
+
+                  {/* ── POSTS TAB ── */}
+                  <TabsContent value="posts">
+                    {/* Stats */}
+                    <div className="flex gap-6 mb-6">
+                      <div className="text-sm">
+                        <span className="text-2xl font-display font-bold text-primary">
+                          {publishedCount}
+                        </span>
+                        <span className="text-muted-foreground ml-1.5">
+                          published
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="text-2xl font-display font-bold text-muted-foreground">
+                          {draftCount}
+                        </span>
+                        <span className="text-muted-foreground ml-1.5">
+                          drafts
+                        </span>
+                      </div>
+                    </div>
+
+                    {posts.length === 0 ? (
+                      <div className="text-center py-20 rounded-xl border border-dashed border-border">
+                        <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                        <p className="text-muted-foreground font-medium mb-4">
+                          No posts yet
+                        </p>
+                        <Button
+                          onClick={handleNewPost}
+                          style={{
+                            background: "oklch(0.42 0.12 195)",
+                            color: "white",
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create First Post
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {posts.map((post) => (
+                          <motion.div
+                            key={post.id}
+                            layout
+                            className="rounded-xl border border-border bg-card p-4 sm:p-5"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center flex-wrap gap-2 mb-1">
+                                  <h3 className="font-semibold text-sm truncate">
+                                    {post.title}
+                                  </h3>
+                                  <Badge
+                                    className="shrink-0 text-xs"
+                                    style={
+                                      post.status === "published"
+                                        ? {
+                                            background: "oklch(0.55 0.15 195)",
+                                            color: "white",
+                                          }
+                                        : {}
+                                    }
+                                    variant={
+                                      post.status === "published"
+                                        ? "default"
+                                        : "secondary"
+                                    }
+                                  >
+                                    {post.status === "published"
+                                      ? "Published"
+                                      : "Draft"}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center flex-wrap gap-2 text-xs text-muted-foreground">
+                                  <span
+                                    className="font-medium"
+                                    style={{ color: "oklch(0.48 0.10 195)" }}
+                                  >
+                                    {CATEGORIES.find(
+                                      (c) => c.slug === post.category,
+                                    )?.name ?? post.category}
+                                  </span>
+                                  <span>·</span>
+                                  <span>{post.authorName}</span>
+                                  <span>·</span>
+                                  <span>{formatDate(post.createdAt)}</span>
+                                  {post.publishedAt && (
+                                    <>
+                                      <span>·</span>
+                                      <span>
+                                        Published:{" "}
+                                        {formatDate(post.publishedAt)}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleTogglePublish(post)}
+                                  className="gap-1.5 text-xs"
+                                >
+                                  {post.status === "published" ? (
+                                    <>
+                                      <EyeOff className="h-3.5 w-3.5" />
+                                      Unpublish
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Eye className="h-3.5 w-3.5" />
+                                      Publish
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditPost(post)}
+                                  className="gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                  Edit
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive hover:bg-destructive/10"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Delete Post
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to delete "
+                                        {post.title}"? This cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        onClick={() =>
+                                          handleDeletePost(post.id)
+                                        }
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* ── COMMENTS TAB ── */}
+                  <TabsContent value="comments">
+                    <div className="space-y-6">
+                      {/* Pending */}
+                      <div>
+                        <h3 className="font-display font-semibold text-lg mb-3">
+                          Pending Moderation
+                          <span className="text-muted-foreground font-normal text-sm ml-2">
+                            ({pendingComments.length})
+                          </span>
+                        </h3>
+                        {pendingComments.length === 0 ? (
+                          <p className="text-sm text-muted-foreground py-4">
+                            No pending comments.
+                          </p>
+                        ) : (
+                          <div className="space-y-3">
+                            {pendingComments.map((c) => (
+                              <div
+                                key={c.id}
+                                className="rounded-xl border border-border bg-card p-4"
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-semibold text-sm">
+                                        {c.commenterName}
+                                      </span>
+                                      {c.email && (
+                                        <span className="text-xs text-muted-foreground">
+                                          ({c.email})
+                                        </span>
+                                      )}
+                                      <span className="text-xs text-muted-foreground">
+                                        · {formatDate(c.createdAt)}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-foreground mb-1">
+                                      {c.commentText}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Post ID: {c.postId}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleApproveComment(c.id)}
+                                      className="text-xs gap-1"
+                                      style={{
+                                        background: "oklch(0.50 0.14 165)",
+                                        color: "white",
+                                      }}
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                      Approve
+                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="text-destructive"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>
+                                            Delete Comment
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Delete this comment? Cannot be
+                                            undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>
+                                            Cancel
+                                          </AlertDialogCancel>
+                                          <AlertDialogAction
+                                            className="bg-destructive text-destructive-foreground"
+                                            onClick={() =>
+                                              handleDeleteComment(c.id)
+                                            }
+                                          >
+                                            Delete
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <Separator />
+
+                      {/* Approved */}
+                      <div>
+                        <h3 className="font-display font-semibold text-lg mb-3">
+                          Approved Comments
+                          <span className="text-muted-foreground font-normal text-sm ml-2">
+                            ({approvedComments.length})
+                          </span>
+                        </h3>
+                        {approvedComments.length === 0 ? (
+                          <p className="text-sm text-muted-foreground py-4">
+                            No approved comments yet.
+                          </p>
+                        ) : (
+                          <div className="space-y-3">
+                            {approvedComments.map((c) => (
+                              <div
+                                key={c.id}
+                                className="rounded-xl border border-border bg-card p-4 flex items-start justify-between gap-3"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <span className="font-semibold text-sm">
+                                      {c.commenterName}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      · {formatDate(c.createdAt)}
+                                    </span>
+                                    <Badge
+                                      className="text-xs"
+                                      style={{
+                                        background: "oklch(0.92 0.06 155)",
+                                        color: "oklch(0.35 0.10 155)",
+                                      }}
+                                    >
+                                      Approved
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm text-foreground">
+                                    {c.commentText}
+                                  </p>
+                                </div>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive shrink-0"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Delete Comment
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Delete this comment?
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        className="bg-destructive text-destructive-foreground"
+                                        onClick={() =>
+                                          handleDeleteComment(c.id)
+                                        }
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </motion.div>
+            ) : (
+              /* ════════════ POST FORM ════════════ */
+              <motion.div
+                key="form"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25 }}
+                className="max-w-3xl mx-auto"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancel}
+                    className="gap-1.5 text-muted-foreground"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
+                  </Button>
+                  <h2 className="font-display text-2xl font-bold">
+                    {view === "edit" ? "Edit Post" : "New Post"}
+                  </h2>
+                </div>
+
+                <div className="bg-card rounded-2xl border border-border p-6 sm:p-8 shadow-card space-y-6">
+                  {/* ──── COVER IMAGE (top) ──── */}
+                  <div className="space-y-2">
+                    <Label>Cover Image</Label>
+                    <div className="flex flex-col gap-3">
+                      {form.coverImageUrl && (
+                        <div className="relative rounded-lg overflow-hidden aspect-[16/9] bg-muted">
+                          <img
+                            src={form.coverImageUrl}
+                            alt="Cover preview"
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm((prev) => ({
+                                ...prev,
+                                coverImageUrl: "",
+                              }))
+                            }
+                            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80 transition-colors"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <label className="cursor-pointer">
+                        <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 px-4 text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
+                          {coverUploading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4" />
+                              Upload cover image
+                            </>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleCoverUpload}
+                          disabled={coverUploading}
+                        />
+                      </label>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Or enter image URL
+                        </Label>
+                        <Input
+                          placeholder="https://..."
+                          value={form.coverImageUrl}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              coverImageUrl: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* ──── TITLE ──── */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="title">
+                      Title <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="title"
+                      placeholder="e.g., 5 Ayurvedic Herbs for Glowing Skin"
+                      value={form.title}
+                      onChange={(e) => handleTitleChange(e.target.value)}
+                    />
+                  </div>
+
+                  {/* ──── SLUG ──── */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="slug">
+                      Slug <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="slug"
+                      placeholder="auto-generated-from-title"
+                      value={form.slug}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, slug: e.target.value }))
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      URL: /blog/{form.slug || "your-post-slug"}
+                    </p>
+                  </div>
+
+                  {/* ──── CATEGORY + AUTHOR ──── */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>
+                        Category <span className="text-destructive">*</span>
+                      </Label>
+                      <Select
+                        value={form.category}
+                        onValueChange={(v) =>
+                          setForm((prev) => ({ ...prev, category: v }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CATEGORIES.map((cat) => (
+                            <SelectItem key={cat.slug} value={cat.slug}>
+                              {cat.icon} {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="author">
+                        Author <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="author"
+                        placeholder="e.g., AyurGlow Team"
+                        value={form.authorName}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            authorName: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {/* ──── TAGS ──── */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tags">Tags</Label>
+                    <Input
+                      id="tags"
+                      placeholder="ayurveda, herbs, wellness (comma-separated)"
+                      value={form.tags}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, tags: e.target.value }))
+                      }
+                    />
+                  </div>
+
+                  <Separator />
+
+                  {/* ──── EXCERPT ──── */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="excerpt">Excerpt</Label>
+                    <Textarea
+                      id="excerpt"
+                      placeholder="A brief summary of your article (appears in post cards)"
+                      value={form.excerpt}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          excerpt: e.target.value,
+                        }))
+                      }
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+
+                  {/* ──── CONTENT ──── */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="content">
+                      Content
+                      <span className="text-xs font-normal text-muted-foreground ml-2">
+                        (HTML supported)
+                      </span>
+                    </Label>
+                    <Textarea
+                      id="content"
+                      placeholder="<h2>Introduction</h2><p>Write your content here...</p>"
+                      value={form.content}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          content: e.target.value,
+                        }))
+                      }
+                      rows={18}
+                      className="font-mono text-sm resize-y"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Supports HTML tags: &lt;h2&gt;, &lt;h3&gt;, &lt;p&gt;,
+                      &lt;strong&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;img&gt; etc.
+                    </p>
+                  </div>
+
+                  <Separator />
+
+                  {/* ──── INLINE IMAGES ──── */}
+                  <div className="space-y-4">
+                    <Label className="text-base font-semibold">
+                      In-Post Images
+                    </Label>
+                    <p className="text-xs text-muted-foreground -mt-2">
+                      Upload images to embed within your post content. Copy the
+                      embed code to paste into the content area.
+                    </p>
+
+                    {/* Inline image uploader */}
+                    <div
+                      className="rounded-xl border border-border p-5 space-y-4"
+                      style={{ background: "oklch(0.975 0.008 148)" }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <label className="cursor-pointer flex-1">
+                          <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 px-4 text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
+                            {inlineUploading ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Loading...
+                              </>
+                            ) : inlineImgFile ? (
+                              <>
+                                <Check className="h-4 w-4 text-green-600" />
+                                Image loaded — configure below
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="h-4 w-4" />
+                                Upload in-post image
+                              </>
+                            )}
+                          </div>
+                          <input
+                            ref={inlineFileRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleInlineUpload}
+                            disabled={inlineUploading}
+                          />
+                        </label>
+                      </div>
+
+                      {inlineImgFile && (
+                        <div className="space-y-3">
+                          <img
+                            src={inlineImgFile}
+                            alt="Preview"
+                            className="max-h-32 rounded-lg border border-border"
+                          />
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Image Size</Label>
+                              <Select
+                                value={inlineImgSize}
+                                onValueChange={(v) =>
+                                  setInlineImgSize(v as InlineImage["size"])
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="small">
+                                    Small (300px)
+                                  </SelectItem>
+                                  <SelectItem value="medium">
+                                    Medium (500px)
+                                  </SelectItem>
+                                  <SelectItem value="large">
+                                    Large (700px)
+                                  </SelectItem>
+                                  <SelectItem value="full">
+                                    Full Width
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Alt Text</Label>
+                              <Input
+                                placeholder="Describe the image"
+                                value={inlineImgAlt}
+                                onChange={(e) =>
+                                  setInlineImgAlt(e.target.value)
+                                }
+                                className="h-8 text-xs"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">
+                              Caption (optional)
+                            </Label>
+                            <Input
+                              placeholder="Image caption"
+                              value={inlineImgCaption}
+                              onChange={(e) =>
+                                setInlineImgCaption(e.target.value)
+                              }
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleAddInlineImage}
+                            style={{
+                              background: "oklch(0.50 0.14 165)",
+                              color: "white",
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-1.5" />
+                            Add Image to Post
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Added inline images list */}
+                    {form.inlineImages.length > 0 && (
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Added images ({form.inlineImages.length})
+                        </p>
+                        {form.inlineImages.map((img) => (
+                          <div
+                            key={img.id}
+                            className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+                          >
+                            <img
+                              src={img.url}
+                              alt={img.alt}
+                              className="w-14 h-10 object-cover rounded border border-border shrink-0"
+                            />
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  value={img.size}
+                                  onValueChange={(v) =>
+                                    handleUpdateInlineImageSize(
+                                      img.id,
+                                      v as InlineImage["size"],
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger className="h-6 text-xs w-28">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="small">Small</SelectItem>
+                                    <SelectItem value="medium">
+                                      Medium
+                                    </SelectItem>
+                                    <SelectItem value="large">Large</SelectItem>
+                                    <SelectItem value="full">Full</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {img.alt && (
+                                  <span className="text-xs text-muted-foreground truncate">
+                                    {img.alt}
+                                  </span>
+                                )}
+                              </div>
+                              {img.caption && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {img.caption}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyEmbedCode(img)}
+                                className="text-xs h-7 gap-1"
+                                title="Copy embed code"
+                              >
+                                {copiedId === img.id ? (
+                                  <Check className="h-3.5 w-3.5 text-green-600" />
+                                ) : (
+                                  <Clipboard className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveInlineImage(img.id)}
+                                className="text-destructive h-7"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* ──── PUBLICATION SETTINGS ──── */}
+                  <div
+                    className="rounded-xl border border-border p-5 space-y-4"
+                    style={{ background: "oklch(0.975 0.008 148)" }}
+                  >
+                    <h3 className="font-display font-semibold text-base">
+                      Publication Settings
+                    </h3>
+
+                    {/* Publish Immediately toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="publish-now" className="cursor-pointer">
+                          Publish Immediately
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Sets status to published with current timestamp
+                        </p>
+                      </div>
+                      <Switch
+                        id="publish-now"
+                        checked={form.publishImmediately}
+                        onCheckedChange={(checked) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            publishImmediately: checked,
+                          }))
+                        }
+                      />
+                    </div>
+
+                    {/* Scheduled date (shown when not publishing immediately) */}
+                    {!form.publishImmediately && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="scheduled-date">
+                          Scheduled Publication Date
+                        </Label>
+                        <Input
+                          id="scheduled-date"
+                          type="datetime-local"
+                          value={form.scheduledDate}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              scheduledDate: e.target.value,
+                            }))
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Leave empty to save as draft
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Status radio */}
+                    {!form.publishImmediately && !form.scheduledDate && (
+                      <div className="space-y-2">
+                        <Label>Status</Label>
+                        <div className="flex gap-4">
+                          {(["draft", "published"] as const).map((s) => (
+                            <label
+                              key={s}
+                              className="flex items-center gap-2 cursor-pointer"
+                            >
+                              <input
+                                type="radio"
+                                name="status"
+                                value={s}
+                                checked={form.status === s}
+                                onChange={() =>
+                                  setForm((prev) => ({ ...prev, status: s }))
+                                }
+                                className="accent-primary"
+                              />
+                              <span className="text-sm capitalize">{s}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ──── SAVE BUTTON ──── */}
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={handleCancel}
+                      className="flex-1 border-muted text-muted-foreground"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      className="flex-1"
+                      style={{
+                        background: "oklch(0.42 0.12 195)",
+                        color: "white",
+                      }}
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-4 w-4 mr-2" />
+                          {form.publishImmediately
+                            ? "Publish Post"
+                            : form.scheduledDate
+                              ? "Schedule Post"
+                              : "Save Post"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </main>
+
+      <SiteFooter />
+    </div>
+  );
+}

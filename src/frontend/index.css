@@ -1,0 +1,243 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   AyurGlow Secrets — Design System
+   Palette: Teal / Deep Forest Green / Warm Gold
+   ============================================================ */
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("/assets/fonts/Fraunces.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/assets/fonts/PlusJakartaSans.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* === Core Palette (OKLCH raw L C H) === */
+
+    /* Backgrounds */
+    --background: 0.975 0.008 148;
+    --card: 0.99 0.005 148;
+    --popover: 0.99 0.005 148;
+
+    /* Foregrounds */
+    --foreground: 0.18 0.04 195;
+    --card-foreground: 0.18 0.04 195;
+    --popover-foreground: 0.18 0.04 195;
+
+    /* Primary: Deep Teal */
+    --primary: 0.42 0.12 195;
+    --primary-foreground: 0.98 0.005 148;
+
+    /* Secondary: Forest Green */
+    --secondary: 0.92 0.04 148;
+    --secondary-foreground: 0.28 0.08 155;
+
+    /* Muted: Soft sage */
+    --muted: 0.94 0.02 148;
+    --muted-foreground: 0.52 0.04 185;
+
+    /* Accent: Warm Gold */
+    --accent: 0.88 0.09 85;
+    --accent-foreground: 0.22 0.06 75;
+
+    /* Destructive */
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+
+    /* Borders and inputs */
+    --border: 0.88 0.03 170;
+    --input: 0.88 0.03 170;
+    --ring: 0.42 0.12 195;
+
+    /* Charts */
+    --chart-1: 0.55 0.14 165;
+    --chart-2: 0.48 0.12 195;
+    --chart-3: 0.65 0.16 85;
+    --chart-4: 0.70 0.13 148;
+    --chart-5: 0.42 0.10 210;
+
+    /* Sidebar */
+    --sidebar: 0.24 0.07 195;
+    --sidebar-foreground: 0.96 0.01 148;
+    --sidebar-primary: 0.72 0.14 165;
+    --sidebar-primary-foreground: 0.99 0.005 148;
+    --sidebar-accent: 0.32 0.09 190;
+    --sidebar-accent-foreground: 0.96 0.01 148;
+    --sidebar-border: 0.35 0.08 195;
+    --sidebar-ring: 0.55 0.14 165;
+
+    /* Custom AyurGlow tokens */
+    --ayur-teal: 0.55 0.15 195;
+    --ayur-green: 0.48 0.14 155;
+    --ayur-gold: 0.76 0.14 85;
+    --ayur-deep: 0.24 0.08 200;
+    --ayur-cream: 0.975 0.012 85;
+    --ayur-sage: 0.82 0.06 148;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+    font-feature-settings: "kern" 1, "liga" 1, "swsh" 1;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Fraunces", Georgia, serif;
+  }
+
+  .font-body {
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  }
+
+  /* Ayurglow gradient text */
+  .text-ayur-gradient {
+    background: linear-gradient(
+      135deg,
+      oklch(0.55 0.15 195),
+      oklch(0.48 0.14 155),
+      oklch(0.72 0.14 85)
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Hero gradient overlay */
+  .hero-overlay {
+    background: linear-gradient(
+      to right,
+      oklch(0.16 0.06 200 / 0.85) 0%,
+      oklch(0.20 0.07 185 / 0.60) 50%,
+      oklch(0.20 0.07 185 / 0.20) 100%
+    );
+  }
+
+  /* Botanical pattern background */
+  .botanical-bg {
+    background-color: oklch(var(--background));
+    background-image: radial-gradient(
+        circle at 15% 85%,
+        oklch(0.55 0.15 195 / 0.06) 0%,
+        transparent 40%
+      ),
+      radial-gradient(
+        circle at 85% 20%,
+        oklch(0.48 0.14 155 / 0.07) 0%,
+        transparent 40%
+      );
+  }
+
+  /* Texture overlay for cards */
+  .card-botanical {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card-botanical::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(
+      circle at 90% 10%,
+      oklch(0.55 0.15 195 / 0.05) 0%,
+      transparent 60%
+    );
+    pointer-events: none;
+  }
+
+  /* Elegant separator */
+  .ornamental-divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .ornamental-divider::before,
+  .ornamental-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      oklch(0.55 0.15 195 / 0.4),
+      transparent
+    );
+  }
+
+  /* Smooth scrollbar */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Focus ring override */
+  :focus-visible {
+    outline: 2px solid oklch(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Prose styling for blog content */
+  .ayur-prose {
+    @apply text-foreground leading-relaxed;
+  }
+
+  .ayur-prose h2 {
+    @apply text-2xl font-display mt-8 mb-4 text-foreground;
+  }
+
+  .ayur-prose h3 {
+    @apply text-xl font-display mt-6 mb-3 text-foreground;
+  }
+
+  .ayur-prose p {
+    @apply mb-4 text-base leading-7;
+  }
+
+  .ayur-prose ul,
+  .ayur-prose ol {
+    @apply mb-4 pl-6 space-y-2;
+  }
+
+  .ayur-prose ul li {
+    @apply list-disc;
+  }
+
+  .ayur-prose ol li {
+    @apply list-decimal;
+  }
+
+  .ayur-prose strong {
+    @apply font-semibold;
+    color: oklch(var(--ayur-teal));
+  }
+
+  .ayur-prose blockquote {
+    @apply border-l-4 pl-4 italic my-6 text-muted-foreground;
+    border-color: oklch(var(--ayur-gold));
+  }
+}
