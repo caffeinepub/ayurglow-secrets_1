@@ -43,6 +43,7 @@ export const CATEGORIES = [
     subcategories: [
       "Immunity boosting remedies",
       "Digestion & gut health",
+      "Weight management",
       "Diabetes & BP support",
       "Stress & sleep solutions",
     ],

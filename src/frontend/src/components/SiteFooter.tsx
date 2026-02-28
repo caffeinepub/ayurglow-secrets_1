@@ -162,11 +162,36 @@ export default function SiteFooter() {
         </div>
       </div>
 
+      {/* Affiliate partners strip */}
+      <div
+        className="border-t py-3"
+        style={{
+          borderColor: "oklch(0.28 0.06 200)",
+          background: "oklch(0.16 0.06 202)",
+        }}
+      >
+        <div className="container mx-auto px-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs">
+          <span style={{ color: "oklch(0.60 0.04 185)" }}>
+            Shop Ayurvedic Products — Affiliate partners:
+          </span>
+          {["Patanjali", "Himalaya", "Baidyanath", "Amazon", "Flipkart"].map(
+            (brand, i, arr) => (
+              <span key={brand} className="flex items-center gap-3">
+                <span style={{ color: "oklch(0.72 0.08 165)" }}>{brand}</span>
+                {i < arr.length - 1 && (
+                  <span style={{ color: "oklch(0.40 0.04 190)" }}>·</span>
+                )}
+              </span>
+            ),
+          )}
+        </div>
+      </div>
+
       {/* Bottom bar */}
       <div
         className="border-t py-4"
         style={{
-          borderColor: "oklch(0.28 0.06 200)",
+          borderColor: "oklch(0.22 0.05 200)",
           background: "oklch(0.14 0.05 205)",
         }}
       >

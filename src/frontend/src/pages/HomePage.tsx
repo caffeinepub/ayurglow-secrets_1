@@ -1,7 +1,16 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, CheckCircle2, Leaf, Sparkles, Star } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  Leaf,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  TrendingUp,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
@@ -459,6 +468,252 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
+        </section>
+
+        {/* ==================== MONETIZATION ROADMAP ==================== */}
+        <section className="py-20 container mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <div className="ornamental-divider mb-4 max-w-xs mx-auto">
+              <TrendingUp
+                className="h-4 w-4 shrink-0"
+                style={{ color: "oklch(0.76 0.14 85)" }}
+              />
+            </div>
+            <h2 className="font-display text-3xl sm:text-4xl font-bold mb-3">
+              Our Growth Roadmap
+            </h2>
+            <p className="text-muted-foreground max-w-lg mx-auto">
+              Building a sustainable Ayurvedic wellness community — through
+              trusted content, authentic product recommendations, and valuable
+              digital resources.
+            </p>
+          </motion.div>
+
+          {/* Three monetization pillars */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            {/* Card 1 — AdSense */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.5, delay: 0 }}
+              className="relative rounded-2xl border border-border bg-card p-7 shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 flex flex-col"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "oklch(0.92 0.06 155)" }}
+                >
+                  <TrendingUp
+                    className="h-6 w-6"
+                    style={{ color: "oklch(0.40 0.14 165)" }}
+                  />
+                </div>
+                <Badge
+                  className="text-xs font-semibold"
+                  style={{
+                    background: "oklch(0.94 0.05 100)",
+                    color: "oklch(0.45 0.14 100)",
+                    border: "1px solid oklch(0.80 0.10 100 / 0.5)",
+                  }}
+                >
+                  In Progress
+                </Badge>
+              </div>
+              <h3 className="font-display text-lg font-bold mb-3">
+                Ad-Supported Content
+              </h3>
+              <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                After publishing 25–30 quality posts, we'll integrate Google
+                AdSense to monetize our health &amp; beauty content — keeping
+                all articles completely free for readers.
+              </p>
+              <div
+                className="mt-5 pt-4 border-t flex items-center gap-2"
+                style={{ borderColor: "oklch(0.90 0.02 180)" }}
+              >
+                <span
+                  className="text-xs font-medium"
+                  style={{ color: "oklch(0.55 0.15 195)" }}
+                >
+                  Goal: 25–30 quality posts
+                </span>
+              </div>
+            </motion.div>
+
+            {/* Card 2 — Affiliate Marketing */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="relative rounded-2xl border border-border bg-card p-7 shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 flex flex-col"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "oklch(0.92 0.06 155)" }}
+                >
+                  <ShoppingBag
+                    className="h-6 w-6"
+                    style={{ color: "oklch(0.40 0.14 165)" }}
+                  />
+                </div>
+                <Badge
+                  className="text-xs font-semibold"
+                  style={{
+                    background: "oklch(0.92 0.06 155)",
+                    color: "oklch(0.35 0.13 165)",
+                    border: "1px solid oklch(0.70 0.12 155 / 0.4)",
+                  }}
+                >
+                  Active Soon
+                </Badge>
+              </div>
+              <h3 className="font-display text-lg font-bold mb-3">
+                Ayurvedic Product Affiliates
+              </h3>
+              <p className="text-sm text-muted-foreground leading-relaxed flex-1">
+                We partner with trusted Ayurvedic brands for affiliate marketing
+                — recommending quality oils, herbs, and supplements from leading
+                Indian and global marketplaces.
+              </p>
+              <div
+                className="mt-5 pt-4 border-t"
+                style={{ borderColor: "oklch(0.90 0.02 180)" }}
+              >
+                <p
+                  className="text-xs font-semibold mb-2 uppercase tracking-wide"
+                  style={{ color: "oklch(0.55 0.15 195)" }}
+                >
+                  Partner Brands
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "Patanjali",
+                    "Himalaya",
+                    "Baidyanath",
+                    "Amazon",
+                    "Flipkart",
+                  ].map((brand) => (
+                    <span
+                      key={brand}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                      style={{
+                        background: "oklch(0.94 0.04 175)",
+                        color: "oklch(0.38 0.12 195)",
+                        border: "1px solid oklch(0.80 0.06 175 / 0.6)",
+                      }}
+                    >
+                      {brand}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Card 3 — Digital Products */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="relative rounded-2xl border border-border bg-card p-7 shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 flex flex-col"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "oklch(0.92 0.06 155)" }}
+                >
+                  <BookOpen
+                    className="h-6 w-6"
+                    style={{ color: "oklch(0.40 0.14 165)" }}
+                  />
+                </div>
+                <Badge
+                  className="text-xs font-semibold"
+                  style={{
+                    background: "oklch(0.93 0.04 240)",
+                    color: "oklch(0.42 0.12 240)",
+                    border: "1px solid oklch(0.75 0.10 240 / 0.4)",
+                  }}
+                >
+                  Coming Soon
+                </Badge>
+              </div>
+              <h3 className="font-display text-lg font-bold mb-3">
+                Own Digital Products
+              </h3>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+                Coming soon: exclusive Ayurvedic digital resources crafted by
+                our wellness experts for deep, personalised healing.
+              </p>
+              <ul className="space-y-2 flex-1">
+                {[
+                  "Ayurvedic Skin & Hair Care eBook",
+                  "Hair Fall Recovery Plan (PDF)",
+                  "Online Consultation Tie-ups",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-2">
+                    <CheckCircle2
+                      className="h-4 w-4 shrink-0"
+                      style={{ color: "oklch(0.55 0.15 195)" }}
+                    />
+                    <span className="text-sm font-medium">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </div>
+
+          {/* Affiliate Partners Strip */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="rounded-xl border border-border px-6 py-4 flex flex-wrap items-center gap-3"
+            style={{ background: "oklch(0.97 0.015 175)" }}
+          >
+            <span
+              className="text-xs font-semibold uppercase tracking-wider shrink-0"
+              style={{ color: "oklch(0.45 0.12 195)" }}
+            >
+              Trusted Ayurvedic Brands:
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                "Patanjali",
+                "Himalaya",
+                "Baidyanath",
+                "Amazon",
+                "Flipkart",
+              ].map((brand, i, arr) => (
+                <span key={brand} className="flex items-center gap-2">
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: "oklch(0.40 0.14 165)" }}
+                  >
+                    {brand}
+                  </span>
+                  {i < arr.length - 1 && (
+                    <span
+                      className="text-xs"
+                      style={{ color: "oklch(0.70 0.04 180)" }}
+                    >
+                      ·
+                    </span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </motion.div>
         </section>
 
         {/* ==================== ABOUT US SECTION ==================== */}

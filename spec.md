@@ -1,49 +1,32 @@
 # AyurGlow Secrets
 
 ## Current State
-Brand new project. No existing code or backend.
+- Full Ayurvedic wellness blog with 5 categories: Health Remedies, Skin Care, Hair Care, Weight Management, Lifestyle
+- 10 seed blog posts covering the requested SEO topics
+- Admin panel with CRUD, inline images, publish controls
+- Comment section on blog posts
+- Social media links in footer (Instagram, Facebook, YouTube, Pinterest, X)
+- Blue/green color theme with logo
 
 ## Requested Changes (Diff)
 
 ### Add
-- Full Ayurvedic wellness blog website named "AyurGlow Secrets"
-- Tagline: "Ancient Ayurvedic Wisdom for Healthy Body, Glowing Skin & Strong Hair"
-- Custom logo in header
-- Homepage with: Hero section, What We Offer, Why AyurGlow Secrets, About Us, Featured Blog Posts, Category grid
-- 5 category pages: Health Remedies, Skin Care, Hair Care, Weight Management, Lifestyle
-- Blog listing page with all posts, category filter, search
-- Individual blog post page with: cover image, in-content images with size options, publication date, comment section
-- Admin panel at /admin (no login required) with:
-  - Create/edit/delete blog posts
-  - Add cover image at top of post
-  - Add images in-between content with size options (small/medium/large/full)
-  - Set publication date or "Publish Immediately" option
-  - Category selection
-  - Post status (draft/published)
-- 10 pre-seeded blog posts covering all SEO topics listed
-- "Best Ayurvedic Herbs for Glowing Skin" post visible in both Admin and Blog page
-- Comment section on each blog post (no login required, just name + comment)
-- Social media links (Instagram, Facebook, YouTube, Twitter/X, Pinterest) in footer under "Connect With Us"
-- Footer with categories, quick links, about blurb
-- No "Built with Caffeine.ai" branding
-- Blue and green color theme throughout
-- All category remedy links must navigate to real content pages
-- Responsive design, SEO-friendly structure
+- **Monetization section on Homepage**: A dedicated section showcasing the 3 monetization strategies (Google AdSense, Affiliate Marketing, Own Digital Products). This serves as a "Coming Soon" or "Partner With Us" section with cards explaining each revenue approach.
+- **Sub-category detail pages/sections**: Each category page should clearly list and display all 5 sub-categories from the user's specification (Health Remedies has 5 subs, Skin Care has 5 subs, Hair Care has 5 subs). Currently some categories are missing "Weight management" subcategory under Health Remedies.
+- **Health Remedies subcategory fix**: Add "Weight management" to Health Remedies subcategories (currently missing from that category's subcategory list in types/index.ts).
+- **Affiliate marketing showcase section**: A footer or sidebar section showing Ayurvedic affiliate partners (Patanjali, Himalaya, Baidyanath, Amazon, Flipkart) with a "Shop Natural Products" CTA.
+- **Digital Products teaser**: A section or card on the homepage hinting at upcoming eBooks/PDFs (Hair Fall Recovery Plan, Ayurvedic Skin & Hair Care eBook) with a "Coming Soon" badge.
 
 ### Modify
-- Nothing (new project)
+- **CATEGORIES in types/index.ts**: Update Health Remedies subcategories to include all 5: "Immunity boosting remedies", "Digestion & gut health", "Weight management", "Diabetes & BP support", "Stress & sleep solutions"
+- **HomePage**: Add monetization/partnership section between Featured Articles and About Us sections
+- **CategoryPage**: Ensure all subcategory tags are displayed and clickable for filtering
 
 ### Remove
-- Nothing (new project)
+- Nothing to remove
 
 ## Implementation Plan
-1. Generate logo (leaf/herb motif in blue-green)
-2. Select blob-storage component for image uploads
-3. Generate Motoko backend with: BlogPost, Comment, Category data models; CRUD operations for posts; comment submission
-4. Build React frontend:
-   - Layout: Header with logo + nav, Footer with social links
-   - Pages: Home, Blog, BlogPost (detail), Category, Admin
-   - Admin: form with rich text editor, image upload (cover + inline), publish date picker, publish-immediately toggle
-   - Seed 10 blog posts with proper categories and dates
-   - Comment form on blog post pages
-   - Blue-green design system
+1. Update `types/index.ts` — add "Weight management" to Health Remedies subcategories
+2. Update `HomePage.tsx` — add Monetization Strategy section with 3 cards (AdSense, Affiliate, Digital Products) and an Affiliate Partners strip
+3. Update `CategoryPage.tsx` — verify subcategory tags show all items correctly (no changes needed, they already render from CATEGORIES)
+4. Optionally add a "Shop Ayurvedic Products" banner/strip in SiteFooter linking to affiliate partners
