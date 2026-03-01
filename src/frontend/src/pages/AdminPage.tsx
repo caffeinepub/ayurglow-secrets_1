@@ -84,11 +84,38 @@ function formatDate(dateStr: string | null) {
   }
 }
 
-function fileToBase64(file: File): Promise<string> {
+// Compress image to stay well under localStorage limits (~300 KB per image)
+function compressImage(
+  file: File,
+  maxWidth = 1200,
+  quality = 0.7,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
     reader.onerror = reject;
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas not supported"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL("image/jpeg", quality);
+        resolve(compressed);
+      };
+      img.src = e.target?.result as string;
+    };
     reader.readAsDataURL(file);
   });
 }
@@ -211,11 +238,11 @@ export default function AdminPage() {
     e.target.value = "";
     setCoverUploading(true);
     try {
-      const b64 = await fileToBase64(file);
-      setForm((prev) => ({ ...prev, coverImageUrl: b64 }));
+      const compressed = await compressImage(file);
+      setForm((prev) => ({ ...prev, coverImageUrl: compressed }));
       toast.success("Cover image uploaded");
     } catch {
-      toast.error("Failed to upload image");
+      toast.error("Failed to upload image. Please try a smaller file.");
     } finally {
       setCoverUploading(false);
     }
@@ -228,11 +255,11 @@ export default function AdminPage() {
     e.target.value = "";
     setInlineUploading(true);
     try {
-      const b64 = await fileToBase64(file);
-      setInlineImgFile(b64);
+      const compressed = await compressImage(file);
+      setInlineImgFile(compressed);
       toast.success("Image ready to add");
     } catch {
-      toast.error("Failed to load image");
+      toast.error("Failed to load image. Please try a smaller file.");
     } finally {
       setInlineUploading(false);
     }
@@ -340,7 +367,8 @@ export default function AdminPage() {
       refreshData();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save post");
+      const msg = err instanceof Error ? err.message : "Failed to save post";
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

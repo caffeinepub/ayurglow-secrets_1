@@ -15,7 +15,14 @@ export function getPosts(): BlogPost[] {
 }
 
 export function savePosts(posts: BlogPost[]): void {
-  localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+  try {
+    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+  } catch (_e) {
+    // Likely a QuotaExceededError — images are too large for localStorage
+    throw new Error(
+      "Storage limit exceeded. Please use smaller images (under 1 MB each) or fewer images per post.",
+    );
+  }
 }
 
 export function getPost(slug: string): BlogPost | undefined {
