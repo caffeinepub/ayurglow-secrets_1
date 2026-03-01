@@ -15,6 +15,7 @@ import BlogPage from "./pages/BlogPage";
 import CategoryPage from "./pages/CategoryPage";
 import HomePage from "./pages/HomePage";
 import PostPage from "./pages/PostPage";
+import SubcategoryPage from "./pages/SubcategoryPage";
 
 function AppRoot() {
   useEffect(() => {
@@ -60,6 +61,12 @@ const categoryRoute = createRoute({
   component: CategoryPage,
 });
 
+const subcategoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/category/$categorySlug/$subcategorySlug",
+  component: SubcategoryPage,
+});
+
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin",
@@ -77,6 +84,7 @@ const routeTree = rootRoute.addChildren([
   blogRoute,
   postRoute,
   categoryRoute,
+  subcategoryRoute,
   adminRoute,
   aboutRoute,
 ]);

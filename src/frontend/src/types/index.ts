@@ -33,6 +33,11 @@ export interface Comment {
   createdAt: string;
 }
 
+export interface Subcategory {
+  slug: string;
+  name: string;
+}
+
 export const CATEGORIES = [
   {
     slug: "health-remedies",
@@ -41,12 +46,12 @@ export const CATEGORIES = [
       "Immunity boosting, digestion, diabetes, stress & sleep solutions",
     icon: "🌿",
     subcategories: [
-      "Immunity boosting remedies",
-      "Digestion & gut health",
-      "Weight management",
-      "Diabetes & BP support",
-      "Stress & sleep solutions",
-    ],
+      { slug: "immunity", name: "Immunity Boosting Remedies" },
+      { slug: "digestion", name: "Digestion & Gut Health" },
+      { slug: "weight-management", name: "Weight Management" },
+      { slug: "diabetes-bp", name: "Diabetes & BP Support" },
+      { slug: "stress-sleep", name: "Stress & Sleep Solutions" },
+    ] as Subcategory[],
   },
   {
     slug: "skin-care",
@@ -55,12 +60,12 @@ export const CATEGORIES = [
       "Natural glow, acne, pigmentation, anti-aging, DIY herbal face packs",
     icon: "✨",
     subcategories: [
-      "Natural glow remedies",
-      "Acne & pimples",
-      "Pigmentation & dark spots",
-      "Anti-aging Ayurveda",
-      "DIY herbal face packs",
-    ],
+      { slug: "natural-glow", name: "Natural Glow Remedies" },
+      { slug: "acne-pimples", name: "Acne & Pimples" },
+      { slug: "pigmentation", name: "Pigmentation & Dark Spots" },
+      { slug: "anti-aging", name: "Anti-Aging Ayurveda" },
+      { slug: "face-packs", name: "DIY Herbal Face Packs" },
+    ] as Subcategory[],
   },
   {
     slug: "hair-care",
@@ -68,12 +73,12 @@ export const CATEGORIES = [
     description: "Hair fall, growth, dandruff, grey hair, Ayurvedic oils",
     icon: "💇",
     subcategories: [
-      "Hair fall treatment",
-      "Hair growth remedies",
-      "Dandruff & scalp care",
-      "Grey hair solutions",
-      "Ayurvedic oils & masks",
-    ],
+      { slug: "hair-fall", name: "Hair Fall Treatment" },
+      { slug: "hair-growth", name: "Hair Growth Remedies" },
+      { slug: "dandruff", name: "Dandruff & Scalp Care" },
+      { slug: "grey-hair", name: "Grey Hair Solutions" },
+      { slug: "ayurvedic-oils", name: "Ayurvedic Oils & Masks" },
+    ] as Subcategory[],
   },
   {
     slug: "weight-management",
@@ -81,11 +86,11 @@ export const CATEGORIES = [
     description: "Ayurvedic approach to healthy weight, metabolism, detox",
     icon: "⚖️",
     subcategories: [
-      "Weight loss remedies",
-      "Metabolism boost",
-      "Detox & cleanse",
-      "Mindful eating",
-    ],
+      { slug: "weight-loss", name: "Weight Loss Remedies" },
+      { slug: "metabolism", name: "Metabolism Boost" },
+      { slug: "detox", name: "Detox & Cleanse" },
+      { slug: "mindful-eating", name: "Mindful Eating" },
+    ] as Subcategory[],
   },
   {
     slug: "lifestyle",
@@ -93,10 +98,10 @@ export const CATEGORIES = [
     description: "Daily Ayurvedic routines, yoga, mindfulness, seasonal living",
     icon: "🧘",
     subcategories: [
-      "Daily Ayurvedic routine",
-      "Yoga & pranayama",
-      "Seasonal wellness",
-      "Mindful living",
-    ],
+      { slug: "daily-routine", name: "Daily Ayurvedic Routine" },
+      { slug: "yoga-pranayama", name: "Yoga & Pranayama" },
+      { slug: "seasonal-wellness", name: "Seasonal Wellness" },
+      { slug: "mindful-living", name: "Mindful Living" },
+    ] as Subcategory[],
   },
 ];

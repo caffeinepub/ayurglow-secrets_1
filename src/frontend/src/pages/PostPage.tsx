@@ -58,6 +58,63 @@ const MAX_WIDTHS: Record<string, string> = {
   full: "100%",
 };
 
+// ─────────────── inline formatting parser ──────────────────────────────────
+
+/**
+ * Parse a single line of text and return an array of React nodes, converting:
+ *  **text**             → <strong>
+ *  _text_               → <em>
+ *  [color:#hex]text[/color] → <span style={{color}}>
+ */
+function renderLine(line: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let rest = line;
+  let keyIdx = 0;
+
+  // Token regex — order matters: color tags first, then bold, then italic
+  const TOKEN =
+    /(\[color:(#[0-9a-fA-F]{3,8})\])([\s\S]*?)(\[\/color\])|(\*\*)([\s\S]*?)(\*\*)|(_)([\s\S]*?)(_)/g;
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  // biome-ignore lint/suspicious/noAssignInExpressions: standard regex loop pattern
+  while ((match = TOKEN.exec(rest)) !== null) {
+    // Push text before this match as a plain string
+    if (match.index > lastIndex) {
+      nodes.push(rest.slice(lastIndex, match.index));
+    }
+
+    if (match[1]) {
+      // Color: groups 1-4
+      const color = match[2];
+      const inner = match[3];
+      nodes.push(
+        <span key={`c-${keyIdx++}`} style={{ color }}>
+          {renderLine(inner)}
+        </span>,
+      );
+    } else if (match[5]) {
+      // Bold: groups 5-7
+      const inner = match[6];
+      nodes.push(<strong key={`b-${keyIdx++}`}>{renderLine(inner)}</strong>);
+    } else if (match[8]) {
+      // Italic: groups 8-10
+      const inner = match[9];
+      nodes.push(<em key={`i-${keyIdx++}`}>{renderLine(inner)}</em>);
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Push any remaining text
+  if (lastIndex < rest.length) {
+    nodes.push(rest.slice(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : [line];
+}
+
 function InlineImageFigure({
   img,
   className,
@@ -91,31 +148,81 @@ function PostContent({
   content: string;
   inlineImages: import("../types").InlineImage[];
 }) {
-  // Render all text paragraphs, then all images in order below
-  const paragraphs = content.split(/\n\n+/).filter((b) => b.trim());
+  // Build a lookup map for quick access by id
+  const imgMap = new Map(inlineImages.map((img) => [img.id, img]));
+  // Track which images were rendered inline so we can show the rest at the end
+  const renderedIds = new Set<string>();
+
+  // Split content on [image:id] tags, preserving the tokens
+  const IMAGE_TAG = /(\[image:[^\]]+\])/g;
+  const tokens = content.split(IMAGE_TAG);
+
+  // Group tokens into paragraphs + image nodes
+  type Node =
+    | { type: "paragraph"; text: string }
+    | { type: "image"; id: string };
+
+  const nodes: Node[] = [];
+  let textBuffer = "";
+
+  const flushText = () => {
+    if (textBuffer.trim()) {
+      nodes.push({ type: "paragraph", text: textBuffer });
+    }
+    textBuffer = "";
+  };
+
+  for (const token of tokens) {
+    const match = token.match(/^\[image:([^\]]+)\]$/);
+    if (match) {
+      flushText();
+      nodes.push({ type: "image", id: match[1] });
+    } else {
+      textBuffer += token;
+    }
+  }
+  flushText();
 
   return (
     <>
-      {paragraphs.map((block) => {
-        const key = `para-${block.slice(0, 60)}`;
-        const lines = block.trim().split(/\n/);
-        return (
-          <p key={key} className="mb-4 leading-relaxed">
-            {lines.map((line, li) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: line breaks within a paragraph have no stable identity
-              <span key={li}>
-                {line}
-                {li < lines.length - 1 && <br />}
-              </span>
-            ))}
-          </p>
-        );
+      {nodes.map((node, idx) => {
+        if (node.type === "image") {
+          const img = imgMap.get(node.id);
+          if (!img) return null;
+          renderedIds.add(img.id);
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: positional index is stable for rendered nodes
+            <div key={idx} className="my-6">
+              <InlineImageFigure img={img} />
+            </div>
+          );
+        }
+        // paragraph node
+        const paragraphs = node.text.split(/\n\n+/).filter((b) => b.trim());
+        return paragraphs.map((block) => {
+          const key = `para-${idx}-${block.slice(0, 40)}`;
+          const lines = block.trim().split(/\n/);
+          return (
+            <p key={key} className="mb-4 leading-relaxed">
+              {lines.map((line, li) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: line breaks within a paragraph have no stable identity
+                <span key={li}>
+                  {renderLine(line)}
+                  {li < lines.length - 1 && <br />}
+                </span>
+              ))}
+            </p>
+          );
+        });
       })}
-      {inlineImages.length > 0 && (
+      {/* Append any images that weren't placed via tags */}
+      {inlineImages.filter((img) => !renderedIds.has(img.id)).length > 0 && (
         <div className="mt-8 space-y-6">
-          {inlineImages.map((img) => (
-            <InlineImageFigure key={img.id} img={img} />
-          ))}
+          {inlineImages
+            .filter((img) => !renderedIds.has(img.id))
+            .map((img) => (
+              <InlineImageFigure key={img.id} img={img} />
+            ))}
         </div>
       )}
     </>

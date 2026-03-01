@@ -267,10 +267,10 @@ export default function AboutPage() {
                         <div className="flex flex-wrap gap-1.5">
                           {cat.subcategories.map((sub) => (
                             <span
-                              key={sub}
+                              key={sub.slug}
                               className="text-xs px-2 py-0.5 rounded-full border border-border text-muted-foreground"
                             >
-                              {sub}
+                              {sub.name}
                             </span>
                           ))}
                         </div>

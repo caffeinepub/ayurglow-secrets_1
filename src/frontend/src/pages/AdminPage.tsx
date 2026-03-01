@@ -28,6 +28,7 @@ import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Check,
+  Clipboard,
   Edit,
   Eye,
   EyeOff,
@@ -42,6 +43,131 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+// ─────────────── formatting toolbar ────────────────────────────────────────
+
+const TOOLBAR_COLORS = [
+  { label: "Default", value: "", swatch: "transparent", border: true },
+  { label: "Red", value: "#dc2626", swatch: "#dc2626" },
+  { label: "Orange", value: "#ea580c", swatch: "#ea580c" },
+  { label: "Amber", value: "#d97706", swatch: "#d97706" },
+  { label: "Green", value: "#16a34a", swatch: "#16a34a" },
+  { label: "Blue", value: "#2563eb", swatch: "#2563eb" },
+  { label: "Indigo", value: "#4f46e5", swatch: "#4f46e5" },
+  { label: "Purple", value: "#9333ea", swatch: "#9333ea" },
+] as const;
+
+function insertFormatting(
+  textarea: HTMLTextAreaElement,
+  before: string,
+  after: string,
+  setContent: (val: string) => void,
+) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = textarea.value.slice(start, end);
+  const newVal =
+    textarea.value.slice(0, start) +
+    before +
+    selected +
+    after +
+    textarea.value.slice(end);
+  setContent(newVal);
+  requestAnimationFrame(() => {
+    textarea.focus();
+    if (selected.length > 0) {
+      textarea.setSelectionRange(
+        start + before.length,
+        start + before.length + selected.length,
+      );
+    } else {
+      const cursor = start + before.length;
+      textarea.setSelectionRange(cursor, cursor);
+    }
+  });
+}
+
+function FormattingToolbar({
+  textareaRef,
+  setContent,
+}: {
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  setContent: (val: string) => void;
+}) {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-t-lg border border-b-0 border-border"
+      style={{ background: "oklch(0.975 0.008 148)" }}
+    >
+      {/* Bold */}
+      <button
+        type="button"
+        title="Bold (wraps with **)"
+        onClick={() => {
+          if (!textareaRef.current) return;
+          insertFormatting(textareaRef.current, "**", "**", setContent);
+        }}
+        className="h-7 w-7 flex items-center justify-center rounded font-bold text-sm hover:bg-primary/10 transition-colors border border-transparent hover:border-primary/20"
+        style={{ color: "oklch(0.22 0.04 210)" }}
+      >
+        B
+      </button>
+
+      {/* Italic */}
+      <button
+        type="button"
+        title="Italic (wraps with _)"
+        onClick={() => {
+          if (!textareaRef.current) return;
+          insertFormatting(textareaRef.current, "_", "_", setContent);
+        }}
+        className="h-7 w-7 flex items-center justify-center rounded italic text-sm hover:bg-primary/10 transition-colors border border-transparent hover:border-primary/20"
+        style={{ color: "oklch(0.22 0.04 210)" }}
+      >
+        I
+      </button>
+
+      {/* Divider */}
+      <div
+        className="w-px self-stretch"
+        style={{ background: "oklch(0.85 0.04 195)" }}
+      />
+
+      {/* Color swatches */}
+      <span className="text-xs text-muted-foreground mr-0.5">Color:</span>
+      {TOOLBAR_COLORS.map((color) => (
+        <button
+          key={color.label}
+          type="button"
+          title={color.label}
+          onClick={() => {
+            if (!textareaRef.current) return;
+            if (!color.value) {
+              // "Default" — insert nothing / remove color = no-op for now
+              // Just focus back on textarea
+              textareaRef.current.focus();
+              return;
+            }
+            insertFormatting(
+              textareaRef.current,
+              `[color:${color.value}]`,
+              "[/color]",
+              setContent,
+            );
+          }}
+          className="w-5 h-5 rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          style={{
+            background: color.swatch,
+            border:
+              "border" in color && color.border
+                ? "1.5px solid oklch(0.75 0.05 195)"
+                : "1.5px solid transparent",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 import { toast } from "sonner";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
@@ -173,6 +299,7 @@ export default function AdminPage() {
   const [inlineImgAlt, setInlineImgAlt] = useState("");
   const [inlineImgCaption, setInlineImgCaption] = useState("");
   const inlineFileRef = useRef<HTMLInputElement>(null);
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const refreshData = useCallback(() => {
     setPosts(getPosts());
@@ -1063,8 +1190,15 @@ export default function AdminPage() {
                   {/* ──── CONTENT ──── */}
                   <div className="space-y-1.5">
                     <Label htmlFor="content">Content</Label>
+                    <FormattingToolbar
+                      textareaRef={contentTextareaRef}
+                      setContent={(val) =>
+                        setForm((prev) => ({ ...prev, content: val }))
+                      }
+                    />
                     <Textarea
                       id="content"
+                      ref={contentTextareaRef}
                       placeholder="Write your article content here in plain text. Each new line will appear as a new paragraph."
                       value={form.content}
                       onChange={(e) =>
@@ -1074,11 +1208,15 @@ export default function AdminPage() {
                         }))
                       }
                       rows={18}
-                      className="text-sm resize-y"
+                      className="text-sm resize-y rounded-t-none"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Write plain text — no HTML tags needed. Separate
-                      paragraphs with a blank line.
+                      Write plain text. Separate paragraphs with a blank line.
+                      To place an image in-between your content, upload it
+                      below, then click the <strong>📋 Copy Tag</strong> button
+                      next to it and paste the tag (e.g.{" "}
+                      <code>[image:abc123]</code>) at the exact spot in your
+                      text where you want it to appear.
                     </p>
                   </div>
 
@@ -1090,8 +1228,12 @@ export default function AdminPage() {
                       In-Post Images
                     </Label>
                     <p className="text-xs text-muted-foreground -mt-2">
-                      Upload images to include in your post. They will appear in
-                      the order shown below, after your content.
+                      Upload images here, then click the{" "}
+                      <strong>📋 Copy Tag</strong> button next to each image to
+                      get a tag like <code>[image:abc123]</code>. Paste that tag
+                      anywhere in your content above where you want the image to
+                      appear. Images without a tag will appear after your
+                      content.
                     </p>
 
                     {/* Inline image uploader */}
@@ -1258,6 +1400,31 @@ export default function AdminPage() {
                               )}
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                title="Copy image tag to paste in content"
+                                onClick={() => {
+                                  navigator.clipboard
+                                    .writeText(`[image:${img.id}]`)
+                                    .then(() =>
+                                      toast.success(
+                                        `Tag [image:${img.id.slice(0, 6)}…] copied — paste it in your content where you want this image`,
+                                      ),
+                                    )
+                                    .catch(() =>
+                                      toast.error(
+                                        "Could not copy to clipboard",
+                                      ),
+                                    );
+                                }}
+                                className="h-7 text-xs gap-1"
+                                style={{ color: "oklch(0.42 0.12 195)" }}
+                              >
+                                <Clipboard className="h-3.5 w-3.5" />
+                                Copy Tag
+                              </Button>
                               <Button
                                 type="button"
                                 variant="ghost"

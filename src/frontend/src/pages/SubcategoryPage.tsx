@@ -10,34 +10,42 @@ import { getPostsByCategory } from "../lib/storage";
 import type { BlogPost } from "../types";
 import { CATEGORIES } from "../types";
 
-export default function CategoryPage() {
-  const { slug } = useParams({ from: "/category/$slug" });
+export default function SubcategoryPage() {
+  const { categorySlug, subcategorySlug } = useParams({
+    from: "/category/$categorySlug/$subcategorySlug",
+  });
   const [posts, setPosts] = useState<BlogPost[]>([]);
 
-  const catMeta = CATEGORIES.find((c) => c.slug === slug);
+  const catMeta = CATEGORIES.find((c) => c.slug === categorySlug);
+  const subMeta = catMeta?.subcategories.find(
+    (s) => s.slug === subcategorySlug,
+  );
 
   useEffect(() => {
-    setPosts(getPostsByCategory(slug));
-  }, [slug]);
+    setPosts(getPostsByCategory(categorySlug));
+  }, [categorySlug]);
 
-  if (!catMeta) {
+  if (!catMeta || !subMeta) {
     return (
       <div className="min-h-screen flex flex-col botanical-bg">
         <SiteHeader />
         <main className="flex-1 container mx-auto px-4 py-16 text-center">
           <Leaf className="h-16 w-16 mx-auto mb-4 opacity-20" />
           <h1 className="font-display text-3xl font-bold mb-2">
-            Category Not Found
+            Topic Not Found
           </h1>
           <p className="text-muted-foreground mb-6">
-            This category does not exist or has been removed.
+            This topic does not exist or has been removed.
           </p>
-          <Link to="/blog">
+          <Link
+            to="/category/$slug"
+            params={{ slug: categorySlug || "health-remedies" }}
+          >
             <Button
               style={{ background: "oklch(0.42 0.12 195)", color: "white" }}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Blog
+              Back to Category
             </Button>
           </Link>
         </main>
@@ -54,14 +62,14 @@ export default function CategoryPage() {
     lifestyle: "oklch(0.24 0.09 148)",
   };
 
-  const headerBg = HEADER_BG[slug] ?? "oklch(0.22 0.07 195)";
+  const headerBg = HEADER_BG[categorySlug] ?? "oklch(0.22 0.07 195)";
 
   return (
     <div className="min-h-screen flex flex-col botanical-bg">
       <SiteHeader />
 
       <main className="flex-1">
-        {/* Category Header */}
+        {/* Header */}
         <div
           className="py-16 relative overflow-hidden"
           style={{ background: headerBg }}
@@ -79,72 +87,98 @@ export default function CategoryPage() {
               transition={{ duration: 0.6 }}
               className="text-center"
             >
+              {/* Breadcrumb */}
               <div
-                className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 text-4xl"
-                style={{ background: "oklch(0.92 0.06 148 / 0.15)" }}
+                className="flex items-center justify-center gap-2 mb-4 text-sm"
+                style={{ color: "oklch(0.75 0.05 175)" }}
               >
-                {catMeta.icon}
+                <Link
+                  to="/category/$slug"
+                  params={{ slug: categorySlug }}
+                  className="hover:underline"
+                >
+                  {catMeta.icon} {catMeta.name}
+                </Link>
+                <span>/</span>
+                <span style={{ color: "oklch(0.90 0.02 160)" }}>
+                  {subMeta.name}
+                </span>
               </div>
               <h1
                 className="font-display text-4xl sm:text-5xl font-bold mb-3"
                 style={{ color: "oklch(0.97 0.01 148)" }}
               >
-                {catMeta.name}
+                {subMeta.name}
               </h1>
               <p
                 className="text-sm sm:text-base max-w-lg mx-auto leading-relaxed"
                 style={{ color: "oklch(0.80 0.05 175)" }}
               >
-                {catMeta.description}
+                {catMeta.name} &mdash; Ayurvedic articles and remedies
               </p>
             </motion.div>
           </div>
         </div>
 
         <div className="container mx-auto px-4 py-10">
-          {/* Subcategory tags — each pill links to its own page */}
+          {/* Other subcategories for this category */}
           <div className="mb-8">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
               Browse by topic
             </p>
             <div className="flex flex-wrap gap-2">
-              <span
-                className="px-4 py-1.5 rounded-full text-sm font-medium border"
-                style={{
-                  background: "oklch(0.42 0.12 195)",
-                  color: "white",
-                  borderColor: "oklch(0.42 0.12 195)",
-                }}
-              >
-                All Topics
-              </span>
+              <Link to="/category/$slug" params={{ slug: categorySlug }}>
+                <button
+                  type="button"
+                  className="px-4 py-1.5 rounded-full text-sm font-medium transition-all border"
+                  style={{
+                    background: "transparent",
+                    color: "oklch(0.42 0.12 195)",
+                    borderColor: "oklch(0.88 0.03 170)",
+                  }}
+                >
+                  All Topics
+                </button>
+              </Link>
               {catMeta.subcategories.map((sub) => (
                 <Link
                   key={sub.slug}
                   to="/category/$categorySlug/$subcategorySlug"
-                  params={{ categorySlug: slug, subcategorySlug: sub.slug }}
-                  className="px-4 py-1.5 rounded-full text-sm font-medium transition-all border hover:opacity-80"
-                  style={{
-                    background: "transparent",
-                    color: "oklch(0.48 0.10 175)",
-                    borderColor: "oklch(0.88 0.03 170)",
-                  }}
+                  params={{ categorySlug, subcategorySlug: sub.slug }}
                 >
-                  {sub.name}
+                  <button
+                    type="button"
+                    className="px-4 py-1.5 rounded-full text-sm font-medium transition-all border"
+                    style={
+                      sub.slug === subcategorySlug
+                        ? {
+                            background: "oklch(0.50 0.14 165)",
+                            color: "white",
+                            borderColor: "oklch(0.50 0.14 165)",
+                          }
+                        : {
+                            background: "transparent",
+                            color: "oklch(0.48 0.10 175)",
+                            borderColor: "oklch(0.88 0.03 170)",
+                          }
+                    }
+                  >
+                    {sub.name}
+                  </button>
                 </Link>
               ))}
             </div>
           </div>
 
           <div className="flex items-center justify-between mb-6">
-            <Link to="/blog">
+            <Link to="/category/$slug" params={{ slug: categorySlug }}>
               <Button
                 variant="ghost"
                 size="sm"
                 className="gap-1.5 text-muted-foreground hover:text-foreground"
               >
                 <ArrowLeft className="h-4 w-4" />
-                All Articles
+                All {catMeta.name} Articles
               </Button>
             </Link>
             <p className="text-sm text-muted-foreground">
@@ -156,7 +190,7 @@ export default function CategoryPage() {
             <div className="text-center py-20">
               <div className="text-5xl mb-4">{catMeta.icon}</div>
               <p className="text-muted-foreground font-medium text-lg mb-2">
-                No articles in this category yet
+                No articles in this topic yet
               </p>
               <p className="text-sm text-muted-foreground mb-6">
                 Coming soon — check back for new content
@@ -176,6 +210,16 @@ export default function CategoryPage() {
               ))}
             </div>
           )}
+
+          {/* Coming soon notice */}
+          <div
+            className="mt-8 rounded-xl border border-dashed border-border p-6 text-center"
+            style={{ background: "oklch(0.97 0.01 148)" }}
+          >
+            <p className="font-medium text-muted-foreground">
+              More articles on <strong>{subMeta.name}</strong> coming soon!
+            </p>
+          </div>
         </div>
       </main>
 
