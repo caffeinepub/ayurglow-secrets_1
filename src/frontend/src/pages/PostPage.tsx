@@ -17,6 +17,7 @@ import {
   User,
 } from "lucide-react";
 import { motion } from "motion/react";
+import type React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import PostCard from "../components/PostCard";
@@ -48,6 +49,77 @@ const CATEGORY_COLORS: Record<string, { text: string; bg: string }> = {
 
 function getCategoryName(slug: string): string {
   return CATEGORIES.find((c) => c.slug === slug)?.name ?? slug;
+}
+
+const MAX_WIDTHS: Record<string, string> = {
+  small: "300px",
+  medium: "500px",
+  large: "700px",
+  full: "100%",
+};
+
+function InlineImageFigure({
+  img,
+  className,
+}: {
+  img: import("../types").InlineImage;
+  className?: string;
+}) {
+  return (
+    <figure
+      className={`mx-auto ${className ?? ""}`}
+      style={{ maxWidth: MAX_WIDTHS[img.size] }}
+    >
+      <img
+        src={img.url}
+        alt={img.alt}
+        className="w-full rounded-xl border border-border shadow-sm"
+      />
+      {img.caption && (
+        <figcaption className="text-center text-xs text-muted-foreground mt-2">
+          {img.caption}
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+function PostContent({
+  content,
+  inlineImages,
+}: {
+  content: string;
+  inlineImages: import("../types").InlineImage[];
+}) {
+  // Render all text paragraphs, then all images in order below
+  const paragraphs = content.split(/\n\n+/).filter((b) => b.trim());
+
+  return (
+    <>
+      {paragraphs.map((block) => {
+        const key = `para-${block.slice(0, 60)}`;
+        const lines = block.trim().split(/\n/);
+        return (
+          <p key={key} className="mb-4 leading-relaxed">
+            {lines.map((line, li) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: line breaks within a paragraph have no stable identity
+              <span key={li}>
+                {line}
+                {li < lines.length - 1 && <br />}
+              </span>
+            ))}
+          </p>
+        );
+      })}
+      {inlineImages.length > 0 && (
+        <div className="mt-8 space-y-6">
+          {inlineImages.map((img) => (
+            <InlineImageFigure key={img.id} img={img} />
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
 
 export default function PostPage() {
@@ -250,44 +322,13 @@ export default function PostPage() {
 
               <Separator className="mb-6" />
 
-              {/* Content – render as HTML */}
-              <div
-                className="ayur-prose"
-                // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional blog content
-                dangerouslySetInnerHTML={{ __html: post.content }}
-              />
-
-              {/* Inline images */}
-              {post.inlineImages && post.inlineImages.length > 0 && (
-                <div className="mt-8 space-y-6">
-                  {post.inlineImages.map((img) => {
-                    const maxWidths = {
-                      small: "300px",
-                      medium: "500px",
-                      large: "700px",
-                      full: "100%",
-                    };
-                    return (
-                      <figure
-                        key={img.id}
-                        className="mx-auto"
-                        style={{ maxWidth: maxWidths[img.size] }}
-                      >
-                        <img
-                          src={img.url}
-                          alt={img.alt}
-                          className="w-full rounded-xl border border-border shadow-sm"
-                        />
-                        {img.caption && (
-                          <figcaption className="text-center text-xs text-muted-foreground mt-2">
-                            {img.caption}
-                          </figcaption>
-                        )}
-                      </figure>
-                    );
-                  })}
-                </div>
-              )}
+              {/* Content – render as plain text paragraphs with inline images */}
+              <div className="ayur-prose">
+                <PostContent
+                  content={post.content}
+                  inlineImages={post.inlineImages ?? []}
+                />
+              </div>
 
               {/* Tags */}
               {post.tags.length > 0 && (

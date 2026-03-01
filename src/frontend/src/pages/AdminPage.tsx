@@ -28,7 +28,6 @@ import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Check,
-  Clipboard,
   Edit,
   Eye,
   EyeOff,
@@ -139,7 +138,6 @@ export default function AdminPage() {
   const [submitting, setSubmitting] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [inlineUploading, setInlineUploading] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Inline image form
   const [inlineImgFile, setInlineImgFile] = useState<string>("");
@@ -281,16 +279,6 @@ export default function AdminPage() {
         img.id === id ? { ...img, size } : img,
       ),
     }));
-  };
-
-  const handleCopyEmbedCode = (img: InlineImage) => {
-    const _code = `<img src="${img.url.substring(0, 50)}..." class="post-image-${img.size}" alt="${img.alt}" />`;
-    navigator.clipboard.writeText(
-      `<img src="[uploaded-image]" class="post-image-${img.size}" alt="${img.alt}" />`,
-    );
-    setCopiedId(img.id);
-    setTimeout(() => setCopiedId(null), 2000);
-    toast.success("Embed code copied to clipboard");
   };
 
   const handleSubmit = async () => {
@@ -1046,15 +1034,10 @@ export default function AdminPage() {
 
                   {/* ──── CONTENT ──── */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="content">
-                      Content
-                      <span className="text-xs font-normal text-muted-foreground ml-2">
-                        (HTML supported)
-                      </span>
-                    </Label>
+                    <Label htmlFor="content">Content</Label>
                     <Textarea
                       id="content"
-                      placeholder="<h2>Introduction</h2><p>Write your content here...</p>"
+                      placeholder="Write your article content here in plain text. Each new line will appear as a new paragraph."
                       value={form.content}
                       onChange={(e) =>
                         setForm((prev) => ({
@@ -1063,11 +1046,11 @@ export default function AdminPage() {
                         }))
                       }
                       rows={18}
-                      className="font-mono text-sm resize-y"
+                      className="text-sm resize-y"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Supports HTML tags: &lt;h2&gt;, &lt;h3&gt;, &lt;p&gt;,
-                      &lt;strong&gt;, &lt;ul&gt;, &lt;li&gt;, &lt;img&gt; etc.
+                      Write plain text — no HTML tags needed. Separate
+                      paragraphs with a blank line.
                     </p>
                   </div>
 
@@ -1079,8 +1062,8 @@ export default function AdminPage() {
                       In-Post Images
                     </Label>
                     <p className="text-xs text-muted-foreground -mt-2">
-                      Upload images to embed within your post content. Copy the
-                      embed code to paste into the content area.
+                      Upload images to include in your post. They will appear in
+                      the order shown below, after your content.
                     </p>
 
                     {/* Inline image uploader */}
@@ -1247,20 +1230,6 @@ export default function AdminPage() {
                               )}
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleCopyEmbedCode(img)}
-                                className="text-xs h-7 gap-1"
-                                title="Copy embed code"
-                              >
-                                {copiedId === img.id ? (
-                                  <Check className="h-3.5 w-3.5 text-green-600" />
-                                ) : (
-                                  <Clipboard className="h-3.5 w-3.5" />
-                                )}
-                              </Button>
                               <Button
                                 type="button"
                                 variant="ghost"

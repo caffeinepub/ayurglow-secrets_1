@@ -100,10 +100,41 @@ export function deleteComment(id: string): void {
 
 // ── Seed ──────────────────────────────────────────────────────────────────
 
+const SEED_VERSION = "v2_plain_text";
+
 export function isSeeded(): boolean {
-  return localStorage.getItem("ayurglow_seeded") === "true";
+  return localStorage.getItem("ayurglow_seeded") === SEED_VERSION;
 }
 
 export function markSeeded(): void {
-  localStorage.setItem("ayurglow_seeded", "true");
+  localStorage.setItem("ayurglow_seeded", SEED_VERSION);
+}
+
+// Strip HTML tags from a string (for migrating old HTML content to plain text)
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/h[1-6]>/gi, "\n\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<li>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// Migrate any existing posts that still have HTML content to plain text
+export function migrateHtmlContent(): void {
+  const posts = getPosts();
+  const migrated = posts.map((p) => {
+    if (p.content?.includes("<")) {
+      return { ...p, content: stripHtml(p.content) };
+    }
+    return p;
+  });
+  savePosts(migrated);
 }
