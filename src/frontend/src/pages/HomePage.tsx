@@ -16,10 +16,12 @@ import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
-import { seedDatabase } from "../lib/seed";
-import { getPublishedPosts } from "../lib/storage";
-import type { BlogPost } from "../types";
+import { getPublishedPosts } from "../lib/blogApi";
+import type { FrontendBlogPost } from "../lib/blogApi";
 import { CATEGORIES } from "../types";
+
+// FrontendBlogPost is structurally compatible with BlogPost
+type BlogPost = FrontendBlogPost;
 
 const OFFERS = [
   {
@@ -55,8 +57,9 @@ export default function HomePage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
 
   useEffect(() => {
-    seedDatabase();
-    setPosts(getPublishedPosts().slice(0, 6));
+    getPublishedPosts()
+      .then((all) => setPosts(all.slice(0, 6)))
+      .catch(console.error);
   }, []);
 
   return (

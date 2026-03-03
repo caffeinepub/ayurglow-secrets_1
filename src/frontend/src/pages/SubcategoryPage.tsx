@@ -12,10 +12,12 @@ import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
+import { getPostsByCategory } from "../lib/blogApi";
+import type { FrontendBlogPost } from "../lib/blogApi";
 import remediesData from "../lib/remediesData";
-import { getPostsByCategory } from "../lib/storage";
-import type { BlogPost } from "../types";
 import { CATEGORIES } from "../types";
+
+type BlogPost = FrontendBlogPost;
 
 export default function SubcategoryPage() {
   const { categorySlug, subcategorySlug } = useParams({
@@ -29,7 +31,7 @@ export default function SubcategoryPage() {
   );
 
   useEffect(() => {
-    setPosts(getPostsByCategory(categorySlug));
+    getPostsByCategory(categorySlug).then(setPosts).catch(console.error);
   }, [categorySlug]);
 
   if (!catMeta || !subMeta) {

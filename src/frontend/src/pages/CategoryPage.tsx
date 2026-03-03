@@ -6,9 +6,11 @@ import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
-import { getPostsByCategory } from "../lib/storage";
-import type { BlogPost } from "../types";
+import { getPostsByCategory } from "../lib/blogApi";
+import type { FrontendBlogPost } from "../lib/blogApi";
 import { CATEGORIES } from "../types";
+
+type BlogPost = FrontendBlogPost;
 
 export default function CategoryPage() {
   const { slug } = useParams({ from: "/category/$slug" });
@@ -17,7 +19,7 @@ export default function CategoryPage() {
   const catMeta = CATEGORIES.find((c) => c.slug === slug);
 
   useEffect(() => {
-    setPosts(getPostsByCategory(slug));
+    getPostsByCategory(slug).then(setPosts).catch(console.error);
   }, [slug]);
 
   if (!catMeta) {
