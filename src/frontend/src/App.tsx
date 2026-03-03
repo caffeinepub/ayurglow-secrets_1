@@ -6,9 +6,6 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { seedDatabase } from "./lib/seed";
-import { migrateHtmlContent } from "./lib/storage";
 import AboutPage from "./pages/AboutPage";
 import AdminPage from "./pages/AdminPage";
 import BlogPage from "./pages/BlogPage";
@@ -18,11 +15,6 @@ import PostPage from "./pages/PostPage";
 import SubcategoryPage from "./pages/SubcategoryPage";
 
 function AppRoot() {
-  useEffect(() => {
-    seedDatabase();
-    migrateHtmlContent();
-  }, []);
-
   return (
     <>
       <Outlet />

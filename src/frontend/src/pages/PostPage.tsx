@@ -24,15 +24,18 @@ import PostCard from "../components/PostCard";
 import { formatPostDate, getCategoryImage } from "../components/PostCard";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
-import { loadImage, loadImages } from "../lib/imageDb";
 import {
-  addComment,
+  addComment as addBackendComment,
   getCommentsByPost,
-  getPost,
+  getPostBySlug,
   getPostsByCategory,
-} from "../lib/storage";
-import type { BlogPost, Comment } from "../types";
+} from "../lib/blogApi";
+import type { FrontendComment } from "../lib/blogApi";
+import type { BlogPost } from "../types";
 import { CATEGORIES } from "../types";
+
+// Alias FrontendComment to the Comment shape used in this page
+type Comment = FrontendComment & { email?: string };
 
 const CATEGORY_COLORS: Record<string, { text: string; bg: string }> = {
   "health-remedies": {
@@ -249,44 +252,37 @@ export default function PostPage() {
     setLoading(true);
 
     (async () => {
-      const found = getPost(slug);
-      if (!found) {
+      try {
+        const found = await getPostBySlug(slug);
+        if (!found) {
+          if (!cancelled) {
+            setPost(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Fetch comments and related posts in parallel
+        const [fetchedComments, relatedAll] = await Promise.all([
+          getCommentsByPost(found.id),
+          getPostsByCategory(found.category),
+        ]);
+
+        if (!cancelled) {
+          setPost(found as unknown as BlogPost);
+          setComments(fetchedComments);
+          const related = relatedAll
+            .filter((p) => p.id !== found.id)
+            .slice(0, 3);
+          setRelatedPosts(related as unknown as BlogPost[]);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Failed to load post:", err);
         if (!cancelled) {
           setPost(null);
           setLoading(false);
         }
-        return;
-      }
-
-      // Hydrate cover image from IndexedDB if not present
-      let coverImageUrl = found.coverImageUrl;
-      if (!coverImageUrl || coverImageUrl === "") {
-        const coverData = await loadImage(`cover_${found.id}`);
-        if (coverData) coverImageUrl = coverData;
-      }
-
-      // Hydrate inline image URLs from IndexedDB
-      const inlineIds = (found.inlineImages ?? []).map((img) => img.id);
-      const imgMap = await loadImages(inlineIds);
-      const hydratedInlineImages = (found.inlineImages ?? []).map((img) => ({
-        ...img,
-        url: img.url || imgMap.get(img.id) || "",
-      }));
-
-      const hydratedPost: BlogPost = {
-        ...found,
-        coverImageUrl,
-        inlineImages: hydratedInlineImages,
-      };
-
-      if (!cancelled) {
-        setPost(hydratedPost);
-        setComments(getCommentsByPost(found.id));
-        const related = getPostsByCategory(found.category)
-          .filter((p) => p.id !== found.id)
-          .slice(0, 3);
-        setRelatedPosts(related);
-        setLoading(false);
       }
     })();
 
@@ -300,21 +296,19 @@ export default function PostPage() {
     if (!post || !commenterName.trim() || !commentText.trim()) return;
     setSubmitting(true);
     try {
-      const newComment: Comment = {
-        id: Math.random().toString(36).slice(2) + Date.now().toString(36),
-        postId: post.id,
-        commenterName: commenterName.trim(),
-        email: email.trim(),
-        commentText: commentText.trim(),
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      };
-      addComment(newComment);
+      await addBackendComment(
+        post.id,
+        commenterName.trim(),
+        commentText.trim(),
+      );
+      // Re-fetch comments so the new one shows up immediately
+      const updated = await getCommentsByPost(post.id);
+      setComments(updated);
       setCommenterName("");
       setEmail("");
       setCommentText("");
       setSubmitted(true);
-      toast.success("Comment submitted! Awaiting moderation.");
+      toast.success("Comment posted successfully!");
     } catch {
       toast.error("Failed to submit comment. Please try again.");
     } finally {
@@ -615,8 +609,7 @@ export default function PostPage() {
                       color: "oklch(0.28 0.09 155)",
                     }}
                   >
-                    ✅ Your comment has been submitted and is awaiting
-                    moderation. Thank you!
+                    ✅ Your comment has been posted. Thank you!
                   </div>
                 ) : (
                   <form onSubmit={handleSubmitComment} className="space-y-3">

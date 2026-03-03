@@ -172,17 +172,21 @@ function FormattingToolbar({
 import { toast } from "sonner";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
-import { loadImage, loadImages } from "../lib/imageDb";
 import {
-  deleteComment,
-  deletePost,
-  getAllComments,
-  getPosts,
-  updateCommentStatus,
-  upsertPost,
-} from "../lib/storage";
-import type { BlogPost, Comment, InlineImage } from "../types";
+  deletePost as apiDeletePost,
+  publishPost as apiPublishPost,
+  unpublishPost as apiUnpublishPost,
+  createOrUpdatePost,
+  getAllPosts,
+  getCommentsByPost,
+} from "../lib/blogApi";
+import type { FrontendBlogPost, FrontendComment } from "../lib/blogApi";
+import type { InlineImage } from "../types";
 import { CATEGORIES } from "../types";
+
+// Use canister-backed types
+type BlogPost = FrontendBlogPost;
+type Comment = FrontendComment;
 
 // ─────────────── helpers ───────────────────────────────────────────────────
 
@@ -287,6 +291,7 @@ type View = "list" | "create" | "edit";
 export default function AdminPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<View>("list");
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
   const [form, setForm] = useState<PostFormData>(EMPTY_FORM);
@@ -303,13 +308,26 @@ export default function AdminPage() {
   const inlineFileRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const refreshData = useCallback(() => {
-    setPosts(getPosts());
-    setComments(getAllComments());
+  const refreshData = useCallback(async () => {
+    try {
+      const allPosts = await getAllPosts();
+      setPosts(allPosts);
+
+      // Fetch comments for all posts in parallel
+      const commentArrays = await Promise.all(
+        allPosts.map((p) => getCommentsByPost(p.id)),
+      );
+      const allComments = commentArrays.flat();
+      setComments(allComments);
+    } catch (err) {
+      console.error("Failed to load admin data:", err);
+      toast.error("Failed to load posts from canister");
+    }
   }, []);
 
   useEffect(() => {
-    refreshData();
+    setIsLoading(true);
+    refreshData().finally(() => setIsLoading(false));
   }, [refreshData]);
 
   // Auto-generate slug from title
@@ -327,26 +345,14 @@ export default function AdminPage() {
   const handleEditPost = async (post: BlogPost) => {
     setEditingPost(post);
 
-    // Hydrate images from IndexedDB before populating the form
-    let coverImageUrl = post.coverImageUrl;
-    if (!coverImageUrl || coverImageUrl === "") {
-      const coverData = await loadImage(`cover_${post.id}`);
-      if (coverData) coverImageUrl = coverData;
-    }
-    const inlineIds = (post.inlineImages ?? []).map((img) => img.id);
-    const imgMap = await loadImages(inlineIds);
-    const hydratedInlineImages = (post.inlineImages ?? []).map((img) => ({
-      ...img,
-      url: img.url || imgMap.get(img.id) || "",
-    }));
-
+    // Images are already decoded from the canister content prefix by blogApi
     setForm({
       title: post.title,
       slug: post.slug,
       excerpt: post.excerpt,
       content: post.content,
       category: post.category,
-      coverImageUrl,
+      coverImageUrl: post.coverImageUrl,
       authorName: post.authorName,
       tags: post.tags.join(", "),
       publishImmediately: false,
@@ -354,7 +360,7 @@ export default function AdminPage() {
         ? new Date(post.publishedAt).toISOString().slice(0, 16)
         : "",
       status: post.status,
-      inlineImages: hydratedInlineImages,
+      inlineImages: post.inlineImages ?? [],
     });
     setView("edit");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -371,7 +377,7 @@ export default function AdminPage() {
     setView("list");
     setEditingPost(null);
     setForm(EMPTY_FORM);
-    refreshData();
+    refreshData().catch(console.error);
   };
 
   // Cover image upload
@@ -465,22 +471,20 @@ export default function AdminPage() {
         .map((t) => t.trim())
         .filter(Boolean);
 
-      let publishedAt: string | null = null;
       let status: "draft" | "published" = "draft";
-
       if (form.publishImmediately) {
-        publishedAt = now;
         status = "published";
       } else if (form.scheduledDate) {
-        publishedAt = new Date(form.scheduledDate).toISOString();
         status = "published";
       } else {
         status = form.status;
-        publishedAt = editingPost?.publishedAt ?? null;
       }
 
+      // Use "new_" prefix for new posts so blogApi knows to call createPost
+      const postId = editingPost?.id ?? `new_${generateId()}`;
+
       const post: BlogPost = {
-        id: editingPost?.id ?? generateId(),
+        id: postId,
         title: form.title,
         slug: form.slug,
         excerpt: form.excerpt,
@@ -490,13 +494,21 @@ export default function AdminPage() {
         authorName: form.authorName,
         tags,
         status,
-        publishedAt,
+        publishedAt:
+          editingPost?.publishedAt ?? (status === "published" ? now : null),
         createdAt: editingPost?.createdAt ?? now,
         updatedAt: now,
         inlineImages: form.inlineImages,
       };
 
-      await upsertPost(post);
+      const saved = await createOrUpdatePost(post);
+
+      // If the user wants to publish and the post was just created (draft by default on canister),
+      // call publishPost explicitly
+      if (status === "published") {
+        await apiPublishPost(saved.id);
+      }
+
       toast.success(
         view === "edit"
           ? "Post updated successfully!"
@@ -507,7 +519,7 @@ export default function AdminPage() {
       setView("list");
       setEditingPost(null);
       setForm(EMPTY_FORM);
-      refreshData();
+      await refreshData();
     } catch (err) {
       console.error(err);
       const msg = err instanceof Error ? err.message : "Failed to save post";
@@ -518,45 +530,36 @@ export default function AdminPage() {
   };
 
   const handleTogglePublish = async (post: BlogPost) => {
-    const now = new Date().toISOString();
-    const updated: BlogPost = {
-      ...post,
-      status: post.status === "published" ? "draft" : "published",
-      publishedAt:
-        post.status === "published"
-          ? post.publishedAt
-          : (post.publishedAt ?? now),
-      updatedAt: now,
-    };
-    await upsertPost(updated);
-    refreshData();
-    toast.success(
-      updated.status === "published" ? "Post published!" : "Post unpublished",
-    );
+    try {
+      if (post.status === "published") {
+        await apiUnpublishPost(post.id);
+        toast.success("Post unpublished");
+      } else {
+        await apiPublishPost(post.id);
+        toast.success("Post published!");
+      }
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update post status");
+    }
   };
 
-  const handleDeletePost = (id: string) => {
-    deletePost(id);
-    refreshData();
-    toast.success("Post deleted");
-  };
-
-  const handleApproveComment = (id: string) => {
-    updateCommentStatus(id, "approved");
-    refreshData();
-    toast.success("Comment approved");
-  };
-
-  const handleDeleteComment = (id: string) => {
-    deleteComment(id);
-    refreshData();
-    toast.success("Comment deleted");
+  const handleDeletePost = async (id: string) => {
+    try {
+      await apiDeletePost(id);
+      await refreshData();
+      toast.success("Post deleted");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete post");
+    }
   };
 
   const publishedCount = posts.filter((p) => p.status === "published").length;
   const draftCount = posts.filter((p) => p.status === "draft").length;
-  const pendingComments = comments.filter((c) => c.status === "pending");
-  const approvedComments = comments.filter((c) => c.status === "approved");
+  // Canister comments are all approved (no moderation queue)
+  const approvedComments = comments;
 
   return (
     <div className="min-h-screen flex flex-col botanical-bg">
@@ -623,17 +626,7 @@ export default function AdminPage() {
                       <TabsTrigger value="comments" className="gap-1.5">
                         <MessageSquare className="h-3.5 w-3.5" />
                         Comments
-                        {pendingComments.length > 0 && (
-                          <span
-                            className="ml-1 text-xs px-1.5 py-0.5 rounded-full font-bold"
-                            style={{
-                              background: "oklch(0.577 0.245 27.325)",
-                              color: "white",
-                            }}
-                          >
-                            {pendingComments.length}
-                          </span>
-                        )}
+                        <span className="text-xs">({comments.length})</span>
                       </TabsTrigger>
                     </TabsList>
 
@@ -671,7 +664,14 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {posts.length === 0 ? (
+                    {isLoading ? (
+                      <div className="flex items-center justify-center py-20">
+                        <Loader2
+                          className="h-8 w-8 animate-spin"
+                          style={{ color: "oklch(0.42 0.12 195)" }}
+                        />
+                      </div>
+                    ) : posts.length === 0 ? (
                       <div className="text-center py-20 rounded-xl border border-dashed border-border">
                         <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
                         <p className="text-muted-foreground font-medium mb-4">
@@ -820,186 +820,60 @@ export default function AdminPage() {
 
                   {/* ── COMMENTS TAB ── */}
                   <TabsContent value="comments">
-                    <div className="space-y-6">
-                      {/* Pending */}
-                      <div>
-                        <h3 className="font-display font-semibold text-lg mb-3">
-                          Pending Moderation
-                          <span className="text-muted-foreground font-normal text-sm ml-2">
-                            ({pendingComments.length})
-                          </span>
-                        </h3>
-                        {pendingComments.length === 0 ? (
-                          <p className="text-sm text-muted-foreground py-4">
-                            No pending comments.
-                          </p>
-                        ) : (
-                          <div className="space-y-3">
-                            {pendingComments.map((c) => (
-                              <div
-                                key={c.id}
-                                className="rounded-xl border border-border bg-card p-4"
-                              >
-                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-semibold text-sm">
-                                        {c.commenterName}
-                                      </span>
-                                      {c.email && (
-                                        <span className="text-xs text-muted-foreground">
-                                          ({c.email})
-                                        </span>
-                                      )}
-                                      <span className="text-xs text-muted-foreground">
-                                        · {formatDate(c.createdAt)}
-                                      </span>
-                                    </div>
-                                    <p className="text-sm text-foreground mb-1">
-                                      {c.commentText}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      Post ID: {c.postId}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <Button
-                                      size="sm"
-                                      onClick={() => handleApproveComment(c.id)}
-                                      className="text-xs gap-1"
-                                      style={{
-                                        background: "oklch(0.50 0.14 165)",
-                                        color: "white",
-                                      }}
-                                    >
-                                      <Check className="h-3.5 w-3.5" />
-                                      Approve
-                                    </Button>
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="text-destructive"
-                                        >
-                                          <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>
-                                            Delete Comment
-                                          </AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            Delete this comment? Cannot be
-                                            undone.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>
-                                            Cancel
-                                          </AlertDialogCancel>
-                                          <AlertDialogAction
-                                            className="bg-destructive text-destructive-foreground"
-                                            onClick={() =>
-                                              handleDeleteComment(c.id)
-                                            }
-                                          >
-                                            Delete
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  </div>
+                    <div className="space-y-4">
+                      <h3 className="font-display font-semibold text-lg mb-3">
+                        All Comments
+                        <span className="text-muted-foreground font-normal text-sm ml-2">
+                          ({approvedComments.length})
+                        </span>
+                      </h3>
+                      {isLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2
+                            className="h-6 w-6 animate-spin"
+                            style={{ color: "oklch(0.42 0.12 195)" }}
+                          />
+                        </div>
+                      ) : approvedComments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-4">
+                          No comments yet.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {approvedComments.map((c) => (
+                            <div
+                              key={c.id}
+                              className="rounded-xl border border-border bg-card p-4 flex items-start justify-between gap-3"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <span className="font-semibold text-sm">
+                                    {c.commenterName}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    · {formatDate(c.createdAt)}
+                                  </span>
+                                  <Badge
+                                    className="text-xs"
+                                    style={{
+                                      background: "oklch(0.92 0.06 155)",
+                                      color: "oklch(0.35 0.10 155)",
+                                    }}
+                                  >
+                                    Live
+                                  </Badge>
                                 </div>
+                                <p className="text-sm text-foreground">
+                                  {c.commentText}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Post ID: {c.postId}
+                                </p>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <Separator />
-
-                      {/* Approved */}
-                      <div>
-                        <h3 className="font-display font-semibold text-lg mb-3">
-                          Approved Comments
-                          <span className="text-muted-foreground font-normal text-sm ml-2">
-                            ({approvedComments.length})
-                          </span>
-                        </h3>
-                        {approvedComments.length === 0 ? (
-                          <p className="text-sm text-muted-foreground py-4">
-                            No approved comments yet.
-                          </p>
-                        ) : (
-                          <div className="space-y-3">
-                            {approvedComments.map((c) => (
-                              <div
-                                key={c.id}
-                                className="rounded-xl border border-border bg-card p-4 flex items-start justify-between gap-3"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-0.5">
-                                    <span className="font-semibold text-sm">
-                                      {c.commenterName}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                      · {formatDate(c.createdAt)}
-                                    </span>
-                                    <Badge
-                                      className="text-xs"
-                                      style={{
-                                        background: "oklch(0.92 0.06 155)",
-                                        color: "oklch(0.35 0.10 155)",
-                                      }}
-                                    >
-                                      Approved
-                                    </Badge>
-                                  </div>
-                                  <p className="text-sm text-foreground">
-                                    {c.commentText}
-                                  </p>
-                                </div>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-destructive shrink-0"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Delete Comment
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Delete this comment?
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        className="bg-destructive text-destructive-foreground"
-                                        onClick={() =>
-                                          handleDeleteComment(c.id)
-                                        }
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
                 </Tabs>

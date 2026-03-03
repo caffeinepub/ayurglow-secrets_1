@@ -1,13 +1,16 @@
 import { Input } from "@/components/ui/input";
-import { Leaf, Search } from "lucide-react";
+import { Leaf, Loader2, Search } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import PostCard from "../components/PostCard";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
-import { getPublishedPosts } from "../lib/storage";
-import type { BlogPost } from "../types";
+import { getPublishedPosts } from "../lib/blogApi";
+import type { FrontendBlogPost } from "../lib/blogApi";
 import { CATEGORIES } from "../types";
+
+// Use the canister-backed type for blog posts
+type BlogPost = FrontendBlogPost;
 
 const ALL_FILTER = { slug: "all", name: "All", icon: "🌿" };
 const FILTERS = [ALL_FILTER, ...CATEGORIES];
@@ -58,12 +61,17 @@ const POSTS_PER_PAGE = 6;
 
 export default function BlogPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    setPosts(getPublishedPosts());
+    setLoading(true);
+    getPublishedPosts()
+      .then(setPosts)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = useMemo(
@@ -194,12 +202,24 @@ export default function BlogPage() {
           </div>
 
           {/* Results count */}
-          <p className="text-sm text-muted-foreground mb-6">
-            {filtered.length} article{filtered.length !== 1 ? "s" : ""} found
-          </p>
+          {!loading && (
+            <p className="text-sm text-muted-foreground mb-6">
+              {filtered.length} article{filtered.length !== 1 ? "s" : ""} found
+            </p>
+          )}
+
+          {/* Loading skeleton */}
+          {loading && (
+            <div className="flex items-center justify-center py-20">
+              <Loader2
+                className="h-8 w-8 animate-spin"
+                style={{ color: "oklch(0.42 0.12 195)" }}
+              />
+            </div>
+          )}
 
           {/* Grid */}
-          {paginated.length === 0 ? (
+          {!loading && paginated.length === 0 ? (
             <div className="text-center py-20">
               <Leaf
                 className="h-14 w-14 mx-auto mb-4 opacity-20"
@@ -214,13 +234,17 @@ export default function BlogPage() {
                   : "Check back soon for new content"}
               </p>
             </div>
-          ) : (
+          ) : !loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {paginated.map((post, i) => (
-                <PostCard key={post.id} post={post} index={i} />
+                <PostCard
+                  key={post.id}
+                  post={post as import("../types").BlogPost}
+                  index={i}
+                />
               ))}
             </div>
-          )}
+          ) : null}
 
           {/* Pagination */}
           {totalPages > 1 && (
