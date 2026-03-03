@@ -309,68 +309,6 @@ export default function AdminPage() {
   const inlineFileRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  /** Convert pasted HTML into plain text with **bold** and _italic_ markers */
-  const handleContentPaste = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const html = e.clipboardData.getData("text/html");
-      if (!html) return; // no HTML → let default plain-text paste happen
-
-      e.preventDefault();
-
-      // 1. Replace block-level elements with newlines first
-      let text = html
-        .replace(/<br\s*\/?>/gi, "\n")
-        .replace(/<\/p>/gi, "\n\n")
-        .replace(/<\/div>/gi, "\n")
-        .replace(/<\/li>/gi, "\n")
-        .replace(/<\/h[1-6]>/gi, "\n\n");
-
-      // 2. Convert bold → **...**
-      text = text
-        .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, "**$1**")
-        .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, "**$1**");
-
-      // 3. Convert italic → _..._
-      text = text
-        .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, "_$1_")
-        .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, "_$1_");
-
-      // 4. Strip remaining HTML tags
-      text = text.replace(/<[^>]+>/g, "");
-
-      // 5. Decode common HTML entities
-      text = text
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, " ");
-
-      // 6. Collapse 3+ consecutive newlines down to 2
-      text = text.replace(/\n{3,}/g, "\n\n").trim();
-
-      // 7. Insert at cursor position
-      const textarea = contentTextareaRef.current;
-      const start = textarea?.selectionStart ?? form.content.length;
-      const end = textarea?.selectionEnd ?? form.content.length;
-      const newContent =
-        form.content.slice(0, start) + text + form.content.slice(end);
-
-      setForm((prev) => ({ ...prev, content: newContent }));
-
-      // Restore cursor after inserted text
-      requestAnimationFrame(() => {
-        if (textarea) {
-          const cursor = start + text.length;
-          textarea.focus();
-          textarea.setSelectionRange(cursor, cursor);
-        }
-      });
-    },
-    [form.content],
-  );
-
   const refreshData = useCallback(async () => {
     setLoadError(null);
     try {
@@ -1160,7 +1098,6 @@ export default function AdminPage() {
                           content: e.target.value,
                         }))
                       }
-                      onPaste={handleContentPaste}
                       rows={18}
                       className="text-sm resize-y rounded-t-none"
                     />
