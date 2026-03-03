@@ -59,11 +59,24 @@ export default function HomePage() {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      // Retry up to 3 times with a 2 second delay to handle slow canister startup
-      for (let attempt = 0; attempt < 3; attempt++) {
+      // Retry up to 10 times to handle slow canister startup and seeding in progress
+      const delays = [
+        1000, 2000, 2000, 3000, 3000, 4000, 4000, 5000, 5000, 5000,
+      ];
+      for (let attempt = 0; attempt < 10; attempt++) {
         try {
           const all = await getPublishedPosts();
-          if (!cancelled) setPosts(all.slice(0, 6));
+          if (!cancelled) {
+            if (all.length > 0) {
+              setPosts(all.slice(0, 6));
+              return;
+            }
+            // 0 posts but seeding may be in progress — keep retrying
+            if (attempt < 9) {
+              await new Promise((r) => setTimeout(r, delays[attempt]));
+              continue;
+            }
+          }
           return;
         } catch (err) {
           console.error(
@@ -72,7 +85,8 @@ export default function HomePage() {
           );
           const { resetActor: reset } = await import("../lib/blogApi");
           reset();
-          if (attempt < 2) await new Promise((r) => setTimeout(r, 2000));
+          if (attempt < 9)
+            await new Promise((r) => setTimeout(r, delays[attempt]));
         }
       }
     };

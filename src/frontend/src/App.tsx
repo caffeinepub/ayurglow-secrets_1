@@ -6,8 +6,6 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { ensureSeedPostsExist } from "./lib/seedPosts";
 import AboutPage from "./pages/AboutPage";
 import AdminPage from "./pages/AdminPage";
 import BlogPage from "./pages/BlogPage";
@@ -17,12 +15,6 @@ import PostPage from "./pages/PostPage";
 import SubcategoryPage from "./pages/SubcategoryPage";
 
 function AppRoot() {
-  useEffect(() => {
-    // Fire-and-forget: seed the 10 SEO posts to the canister on app startup.
-    // Errors are caught inside ensureSeedPostsExist — this never blocks rendering.
-    ensureSeedPostsExist();
-  }, []);
-
   return (
     <>
       <Outlet />

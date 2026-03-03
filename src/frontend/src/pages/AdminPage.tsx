@@ -179,7 +179,6 @@ import {
   createOrUpdatePost,
   getAllPosts,
   getCommentsByPost,
-  resetActor,
 } from "../lib/blogApi";
 import type { FrontendBlogPost, FrontendComment } from "../lib/blogApi";
 import type { InlineImage } from "../types";
@@ -293,7 +292,7 @@ export default function AdminPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [_loadError, setLoadError] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
   const [form, setForm] = useState<PostFormData>(EMPTY_FORM);
@@ -310,37 +309,83 @@ export default function AdminPage() {
   const inlineFileRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  /** Convert pasted HTML into plain text with **bold** and _italic_ markers */
+  const handleContentPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const html = e.clipboardData.getData("text/html");
+      if (!html) return; // no HTML → let default plain-text paste happen
+
+      e.preventDefault();
+
+      // 1. Replace block-level elements with newlines first
+      let text = html
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/p>/gi, "\n\n")
+        .replace(/<\/div>/gi, "\n")
+        .replace(/<\/li>/gi, "\n")
+        .replace(/<\/h[1-6]>/gi, "\n\n");
+
+      // 2. Convert bold → **...**
+      text = text
+        .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, "**$1**")
+        .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, "**$1**");
+
+      // 3. Convert italic → _..._
+      text = text
+        .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, "_$1_")
+        .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, "_$1_");
+
+      // 4. Strip remaining HTML tags
+      text = text.replace(/<[^>]+>/g, "");
+
+      // 5. Decode common HTML entities
+      text = text
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, " ");
+
+      // 6. Collapse 3+ consecutive newlines down to 2
+      text = text.replace(/\n{3,}/g, "\n\n").trim();
+
+      // 7. Insert at cursor position
+      const textarea = contentTextareaRef.current;
+      const start = textarea?.selectionStart ?? form.content.length;
+      const end = textarea?.selectionEnd ?? form.content.length;
+      const newContent =
+        form.content.slice(0, start) + text + form.content.slice(end);
+
+      setForm((prev) => ({ ...prev, content: newContent }));
+
+      // Restore cursor after inserted text
+      requestAnimationFrame(() => {
+        if (textarea) {
+          const cursor = start + text.length;
+          textarea.focus();
+          textarea.setSelectionRange(cursor, cursor);
+        }
+      });
+    },
+    [form.content],
+  );
+
   const refreshData = useCallback(async () => {
     setLoadError(null);
-    const delays = [1000, 2000, 3000, 4000];
-    let lastErr: unknown;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      try {
-        const allPosts = await getAllPosts();
-        setPosts(allPosts);
-        // Fetch comments for all posts in parallel (limit to first 20 to avoid overload)
-        const commentArrays = await Promise.all(
-          allPosts.slice(0, 20).map((p) => getCommentsByPost(p.id)),
-        );
-        const allComments = commentArrays.flat();
-        setComments(allComments);
-        return; // success
-      } catch (err) {
-        lastErr = err;
-        console.error(`Admin data load attempt ${attempt + 1} failed:`, err);
-        resetActor();
-        if (attempt < 3) {
-          await new Promise((r) => setTimeout(r, delays[attempt]));
-        }
-      }
+    try {
+      const allPosts = await getAllPosts();
+      setPosts(allPosts);
+      // Fetch comments for all posts in parallel (limit to first 20 to avoid overload)
+      const commentArrays = await Promise.all(
+        allPosts.slice(0, 20).map((p) => getCommentsByPost(p.id)),
+      );
+      const allComments = commentArrays.flat();
+      setComments(allComments);
+    } catch (err) {
+      console.error("Admin data load failed:", err);
+      setLoadError("Failed to load posts");
     }
-    // All attempts failed
-    const msg =
-      lastErr instanceof Error
-        ? lastErr.message
-        : "Failed to load posts from canister";
-    setLoadError(msg);
-    toast.error("Failed to load posts from canister. Please try again.");
   }, []);
 
   useEffect(() => {
@@ -688,30 +733,6 @@ export default function AdminPage() {
                           className="h-8 w-8 animate-spin"
                           style={{ color: "oklch(0.42 0.12 195)" }}
                         />
-                      </div>
-                    ) : loadError ? (
-                      <div className="text-center py-20 rounded-xl border border-dashed border-destructive/30">
-                        <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                        <p className="text-destructive font-medium mb-2">
-                          Failed to load posts from canister
-                        </p>
-                        <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
-                          The canister may be initialising. Please wait a moment
-                          and try again.
-                        </p>
-                        <Button
-                          onClick={() => {
-                            setIsLoading(true);
-                            refreshData().finally(() => setIsLoading(false));
-                          }}
-                          style={{
-                            background: "oklch(0.42 0.12 195)",
-                            color: "white",
-                          }}
-                        >
-                          <Loader2 className="h-4 w-4 mr-2" />
-                          Retry
-                        </Button>
                       </div>
                     ) : posts.length === 0 ? (
                       <div className="text-center py-20 rounded-xl border border-dashed border-border">
@@ -1139,6 +1160,7 @@ export default function AdminPage() {
                           content: e.target.value,
                         }))
                       }
+                      onPaste={handleContentPaste}
                       rows={18}
                       className="text-sm resize-y rounded-t-none"
                     />
