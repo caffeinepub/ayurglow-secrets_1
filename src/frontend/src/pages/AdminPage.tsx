@@ -48,6 +48,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const TOOLBAR_COLORS = [
   { label: "Default", value: "", swatch: "transparent", border: true },
+  { label: "Black", value: "#000000", swatch: "#000000" },
   { label: "Red", value: "#dc2626", swatch: "#dc2626" },
   { label: "Orange", value: "#ea580c", swatch: "#ea580c" },
   { label: "Amber", value: "#d97706", swatch: "#d97706" },
@@ -171,6 +172,7 @@ function FormattingToolbar({
 import { toast } from "sonner";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
+import { loadImage, loadImages } from "../lib/imageDb";
 import {
   deleteComment,
   deletePost,
@@ -322,15 +324,29 @@ export default function AdminPage() {
     }));
   };
 
-  const handleEditPost = (post: BlogPost) => {
+  const handleEditPost = async (post: BlogPost) => {
     setEditingPost(post);
+
+    // Hydrate images from IndexedDB before populating the form
+    let coverImageUrl = post.coverImageUrl;
+    if (!coverImageUrl || coverImageUrl === "") {
+      const coverData = await loadImage(`cover_${post.id}`);
+      if (coverData) coverImageUrl = coverData;
+    }
+    const inlineIds = (post.inlineImages ?? []).map((img) => img.id);
+    const imgMap = await loadImages(inlineIds);
+    const hydratedInlineImages = (post.inlineImages ?? []).map((img) => ({
+      ...img,
+      url: img.url || imgMap.get(img.id) || "",
+    }));
+
     setForm({
       title: post.title,
       slug: post.slug,
       excerpt: post.excerpt,
       content: post.content,
       category: post.category,
-      coverImageUrl: post.coverImageUrl,
+      coverImageUrl,
       authorName: post.authorName,
       tags: post.tags.join(", "),
       publishImmediately: false,
@@ -338,7 +354,7 @@ export default function AdminPage() {
         ? new Date(post.publishedAt).toISOString().slice(0, 16)
         : "",
       status: post.status,
-      inlineImages: post.inlineImages ?? [],
+      inlineImages: hydratedInlineImages,
     });
     setView("edit");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -480,7 +496,7 @@ export default function AdminPage() {
         inlineImages: form.inlineImages,
       };
 
-      upsertPost(post);
+      await upsertPost(post);
       toast.success(
         view === "edit"
           ? "Post updated successfully!"
@@ -501,7 +517,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleTogglePublish = (post: BlogPost) => {
+  const handleTogglePublish = async (post: BlogPost) => {
     const now = new Date().toISOString();
     const updated: BlogPost = {
       ...post,
@@ -512,7 +528,7 @@ export default function AdminPage() {
           : (post.publishedAt ?? now),
       updatedAt: now,
     };
-    upsertPost(updated);
+    await upsertPost(updated);
     refreshData();
     toast.success(
       updated.status === "published" ? "Post published!" : "Post unpublished",

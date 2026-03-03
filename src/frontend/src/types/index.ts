@@ -1,6 +1,7 @@
 export interface InlineImage {
   id: string;
-  url: string; // base64
+  /** base64 data-URL — stored in IndexedDB, not in localStorage */
+  url?: string;
   size: "small" | "medium" | "large" | "full";
   alt: string;
   caption: string;

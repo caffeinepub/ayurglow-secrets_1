@@ -1,9 +1,26 @@
 import type { BlogPost, Comment } from "../types";
+import { deleteImages, saveImage } from "./imageDb";
 
 const POSTS_KEY = "ayurglow_posts";
 const COMMENTS_KEY = "ayurglow_comments";
 
 // ── Posts ──────────────────────────────────────────────────────────────────
+
+/**
+ * Strip base64 `url` fields from inline images before persisting so that
+ * localStorage stays small.  The pixel data lives in IndexedDB.
+ */
+function stripImageUrls(post: BlogPost): BlogPost {
+  return {
+    ...post,
+    coverImageUrl: post.coverImageUrl?.startsWith("data:")
+      ? ""
+      : post.coverImageUrl,
+    inlineImages: (post.inlineImages ?? []).map(
+      ({ url: _url, ...rest }) => rest,
+    ),
+  };
+}
 
 export function getPosts(): BlogPost[] {
   try {
@@ -18,9 +35,8 @@ export function savePosts(posts: BlogPost[]): void {
   try {
     localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
   } catch (_e) {
-    // Likely a QuotaExceededError — images are too large for localStorage
     throw new Error(
-      "Storage limit exceeded. Please use smaller images (under 1 MB each) or fewer images per post.",
+      "Could not save posts. Please try clearing old posts to free up space.",
     );
   }
 }
@@ -33,18 +49,48 @@ export function getPostById(id: string): BlogPost | undefined {
   return getPosts().find((p) => p.id === id);
 }
 
-export function upsertPost(post: BlogPost): void {
+/**
+ * Save a post.  Image URLs (base64) are persisted to IndexedDB so that
+ * localStorage only holds small metadata.  Returns a promise because IDB
+ * writes are async.
+ */
+export async function upsertPost(post: BlogPost): Promise<void> {
+  // 1. Persist cover image to IDB if it is a data-URL
+  if (post.coverImageUrl?.startsWith("data:")) {
+    await saveImage(`cover_${post.id}`, post.coverImageUrl);
+  }
+
+  // 2. Persist each inline image to IDB
+  for (const img of post.inlineImages ?? []) {
+    if (img.url?.startsWith("data:")) {
+      await saveImage(img.id, img.url);
+    }
+  }
+
+  // 3. Strip pixel data before writing to localStorage
+  const stripped = stripImageUrls(post);
   const posts = getPosts();
   const idx = posts.findIndex((p) => p.id === post.id);
   if (idx >= 0) {
-    posts[idx] = post;
+    posts[idx] = stripped;
   } else {
-    posts.unshift(post);
+    posts.unshift(stripped);
   }
   savePosts(posts);
 }
 
 export function deletePost(id: string): void {
+  const post = getPosts().find((p) => p.id === id);
+  if (post) {
+    // Clean up orphaned images from IndexedDB (fire-and-forget)
+    const ids = [
+      `cover_${id}`,
+      ...(post.inlineImages ?? []).map((img) => img.id),
+    ];
+    deleteImages(ids).catch(() => {
+      /* best-effort */
+    });
+  }
   savePosts(getPosts().filter((p) => p.id !== id));
 }
 

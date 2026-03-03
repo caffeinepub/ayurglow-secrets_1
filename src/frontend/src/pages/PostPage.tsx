@@ -24,6 +24,7 @@ import PostCard from "../components/PostCard";
 import { formatPostDate, getCategoryImage } from "../components/PostCard";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
+import { loadImage, loadImages } from "../lib/imageDb";
 import {
   addComment,
   getCommentsByPost,
@@ -244,17 +245,54 @@ export default function PostPage() {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    const found = getPost(slug);
-    setPost(found ?? null);
-    if (found) {
-      setComments(getCommentsByPost(found.id));
-      const related = getPostsByCategory(found.category)
-        .filter((p) => p.id !== found.id)
-        .slice(0, 3);
-      setRelatedPosts(related);
-    }
-    setLoading(false);
+
+    (async () => {
+      const found = getPost(slug);
+      if (!found) {
+        if (!cancelled) {
+          setPost(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Hydrate cover image from IndexedDB if not present
+      let coverImageUrl = found.coverImageUrl;
+      if (!coverImageUrl || coverImageUrl === "") {
+        const coverData = await loadImage(`cover_${found.id}`);
+        if (coverData) coverImageUrl = coverData;
+      }
+
+      // Hydrate inline image URLs from IndexedDB
+      const inlineIds = (found.inlineImages ?? []).map((img) => img.id);
+      const imgMap = await loadImages(inlineIds);
+      const hydratedInlineImages = (found.inlineImages ?? []).map((img) => ({
+        ...img,
+        url: img.url || imgMap.get(img.id) || "",
+      }));
+
+      const hydratedPost: BlogPost = {
+        ...found,
+        coverImageUrl,
+        inlineImages: hydratedInlineImages,
+      };
+
+      if (!cancelled) {
+        setPost(hydratedPost);
+        setComments(getCommentsByPost(found.id));
+        const related = getPostsByCategory(found.category)
+          .filter((p) => p.id !== found.id)
+          .slice(0, 3);
+        setRelatedPosts(related);
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [slug]);
 
   const handleSubmitComment = async (e: React.FormEvent) => {
