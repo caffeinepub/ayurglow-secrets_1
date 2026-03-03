@@ -77,8 +77,9 @@ export default function BlogPage() {
     setLoadError(false);
 
     const load = async () => {
-      // Retry up to 3 times with a 2 second delay
-      for (let attempt = 0; attempt < 3; attempt++) {
+      // Retry up to 5 times with increasing delays to handle canister startup
+      const delays = [1000, 2000, 3000, 4000, 5000];
+      for (let attempt = 0; attempt < 5; attempt++) {
         try {
           const data = await getPublishedPosts();
           if (!cancelled) {
@@ -89,8 +90,8 @@ export default function BlogPage() {
         } catch (err) {
           console.error(`Failed to load posts (attempt ${attempt + 1}):`, err);
           resetActor();
-          if (attempt < 2) {
-            await new Promise((r) => setTimeout(r, 2000));
+          if (attempt < 4 && !cancelled) {
+            await new Promise((r) => setTimeout(r, delays[attempt]));
           }
         }
       }

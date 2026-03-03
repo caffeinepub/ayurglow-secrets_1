@@ -312,26 +312,35 @@ export default function AdminPage() {
 
   const refreshData = useCallback(async () => {
     setLoadError(null);
-    try {
-      const allPosts = await getAllPosts();
-      setPosts(allPosts);
-
-      // Fetch comments for all posts in parallel
-      const commentArrays = await Promise.all(
-        allPosts.map((p) => getCommentsByPost(p.id)),
-      );
-      const allComments = commentArrays.flat();
-      setComments(allComments);
-    } catch (err) {
-      console.error("Failed to load admin data:", err);
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Failed to load posts from canister";
-      setLoadError(msg);
-      resetActor();
-      toast.error("Failed to load posts from canister. Please try again.");
+    const delays = [1000, 2000, 3000, 4000];
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const allPosts = await getAllPosts();
+        setPosts(allPosts);
+        // Fetch comments for all posts in parallel (limit to first 20 to avoid overload)
+        const commentArrays = await Promise.all(
+          allPosts.slice(0, 20).map((p) => getCommentsByPost(p.id)),
+        );
+        const allComments = commentArrays.flat();
+        setComments(allComments);
+        return; // success
+      } catch (err) {
+        lastErr = err;
+        console.error(`Admin data load attempt ${attempt + 1} failed:`, err);
+        resetActor();
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, delays[attempt]));
+        }
+      }
     }
+    // All attempts failed
+    const msg =
+      lastErr instanceof Error
+        ? lastErr.message
+        : "Failed to load posts from canister";
+    setLoadError(msg);
+    toast.error("Failed to load posts from canister. Please try again.");
   }, []);
 
   useEffect(() => {

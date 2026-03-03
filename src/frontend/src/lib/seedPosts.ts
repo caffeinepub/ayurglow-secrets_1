@@ -1,9 +1,13 @@
 /**
  * seedPosts.ts — Seeds the 10 SEO blog posts to the canister backend.
  *
- * Called once on app startup from App.tsx.
- * Does NOT rely on actor.seedData() — creates posts directly via createPost/publishPost.
- * Silently skips posts that already exist by slug. Never throws.
+ * Strategy:
+ * 1. Wait for the canister to be ready (retry up to 6 times)
+ * 2. Call seedData() to trigger the 8 default backend posts (idempotent guard inside canister)
+ * 3. Check which of the 10 SEO posts are still missing by slug
+ * 4. Create and publish any missing posts
+ *
+ * Never throws — all errors are caught silently.
  */
 
 import {
@@ -41,21 +45,13 @@ How to use: Warm 2-3 tablespoons of Bhringraj oil, massage into scalp for 10-15 
 
 Amla is the richest natural source of Vitamin C and antioxidants, essential for collagen production that strengthens hair follicles.
 
-How to use: Mix 2 tablespoons of amla powder with coconut oil, apply to scalp, leave for 30 minutes, rinse thoroughly.
-
 3. Onion Juice Treatment
 
 Onion juice is rich in sulfur, which supports keratin production and improves blood supply to hair follicles.
 
-How to use: Extract juice from 2 medium onions, apply directly to scalp, leave for 30-45 minutes, wash with mild shampoo. Use 2-3 times per week.
-
 4. Fenugreek Seeds Mask
 
-Fenugreek seeds contain proteins and nicotinic acid that strengthen hair shafts and prevent breakage.
-
-How to use: Soak 3 tablespoons of fenugreek seeds overnight, grind into paste, mix with yogurt, apply to hair and scalp for 30 minutes.
-
-Consistency is key with Ayurvedic remedies. Most treatments show visible results within 4-8 weeks of regular use.`,
+Fenugreek seeds contain proteins and nicotinic acid that strengthen hair shafts and prevent breakage.`,
     category: "hair-care",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -79,25 +75,17 @@ How to use: Mix 1/4 teaspoon turmeric with raw milk and honey. Apply as a face p
 
 Neem is called the village pharmacy in Ayurveda. Its antibacterial, antifungal, and antiviral properties make it exceptional for treating acne, clearing blemishes, and purifying skin.
 
-How to use: Boil fresh neem leaves in water, let cool, strain, and use as a face wash or toner daily.
-
 3. Sandalwood (Chandan)
 
 Sandalwood cools the skin, reduces inflammation, and has a natural brightening effect. It is especially beneficial for Pitta skin types prone to redness and sensitivity.
-
-How to use: Mix sandalwood powder with rose water into a smooth paste. Apply as a mask for 20 minutes.
 
 4. Saffron (Kesar)
 
 Saffron is revered in Ayurveda as a premium skin brightening herb. It enhances complexion, reduces dark circles, and gives a natural inner glow.
 
-How to use: Soak 4-5 saffron strands in 2 tablespoons of warm milk overnight. Apply to face each morning.
-
 5. Aloe Vera
 
-Aloe vera hydrates, soothes, and heals skin. It contains over 75 active compounds including vitamins, minerals, and amino acids that nourish skin deeply.
-
-How to use: Apply fresh aloe vera gel directly on skin as a daily moisturizer.`,
+Aloe vera hydrates, soothes, and heals skin. It contains over 75 active compounds including vitamins, minerals, and amino acids that nourish skin deeply.`,
     category: "skin-care",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -113,7 +101,7 @@ How to use: Apply fresh aloe vera gel directly on skin as a daily moisturizer.`,
 
 How Stress Causes Hair Fall
 
-In Ayurveda, chronic stress aggravates the Vata dosha, leading to poor circulation to the scalp, dryness, and reduced nutrition to hair follicles. Additionally, elevated cortisol levels disrupt the normal hair growth cycle.
+In Ayurveda, chronic stress aggravates the Vata dosha, leading to poor circulation to the scalp, dryness, and reduced nutrition to hair follicles.
 
 1. Ashwagandha
 
@@ -125,11 +113,7 @@ How to use: Take 1/2 teaspoon of Ashwagandha powder in warm milk before bed dail
 
 Brahmi calms the nervous system when applied topically. Regular scalp massage with Brahmi oil reduces anxiety, improves sleep quality, and directly nourishes hair follicles.
 
-How to use: Massage warm Brahmi oil into the scalp for 15 minutes before bed, leave overnight.
-
-Lifestyle Changes
-
-Practice daily meditation for 15-20 minutes. Do gentle yoga with poses that increase blood flow to the head. Maintain a regular sleep schedule. Increase intake of iron-rich foods like spinach, lentils, and pumpkin seeds.`,
+Lifestyle Changes: Practice daily meditation for 15-20 minutes. Do gentle yoga with poses that increase blood flow to the head.`,
     category: "hair-care",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -155,15 +139,7 @@ Triphala for Digestion
 
 Triphala gently cleanses the digestive tract, removes accumulated toxins, improves nutrient absorption, and promotes regular bowel movements.
 
-How to use: Mix 1/2 teaspoon of Triphala powder in warm water, take on an empty stomach early morning or before bed.
-
-Triphala for Skin
-
-The high antioxidant content fights free radical damage, reduces inflammation, and promotes skin cell renewal. Effective for reducing acne, fading dark spots, brightening skin tone, and reducing signs of premature aging.
-
-Triphala for Hair
-
-Triphala strengthens hair from within by improving nutrient absorption and purifying the blood. Use as a hair rinse to reduce dandruff, add shine, and strengthen hair roots.`,
+How to use: Mix 1/2 teaspoon of Triphala powder in warm water, take on an empty stomach early morning or before bed.`,
     category: "health-remedies",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -197,19 +173,13 @@ Recipe: Grind 10-12 fresh neem leaves into a paste, add 1/4 teaspoon turmeric an
 
 Sandalwood cools the skin and reduces the excess heat that drives Pitta-type acne.
 
-Recipe: Mix 2 tablespoons sandalwood powder with enough rose water to form a paste. Apply to face for 20-30 minutes.
-
 3. Honey and Cinnamon Spot Treatment
 
 Honey has natural antibacterial properties while cinnamon has antimicrobial effects.
 
-Recipe: Mix 1 teaspoon raw honey with 1/4 teaspoon cinnamon powder. Apply directly on pimples overnight.
-
 4. Multani Mitti Face Pack
 
-Multani mitti absorbs excess oil, unclogs pores, and draws out impurities.
-
-Recipe: Mix 2 tablespoons multani mitti with rose water into a paste. Apply to face, leave until dry, rinse with lukewarm water.`,
+Multani mitti absorbs excess oil, unclogs pores, and draws out impurities.`,
     category: "skin-care",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -233,13 +203,7 @@ Vitamin C Foods: Vitamin C helps absorb iron and is essential for collagen produ
 
 Omega-3 Fatty Acids: Include flaxseeds, walnuts, chia seeds, and mustard oil.
 
-Foods to Avoid
-
-Avoid excess spicy and oily foods, refined sugar and processed foods, excessive alcohol and caffeine, and cold and raw foods that weaken digestive fire.
-
-Specific Ayurvedic Hair Growth Tonics
-
-Drink 30ml fresh amla juice daily on empty stomach. Eat 1 tablespoon of black sesame seeds daily. Include 1-2 teaspoons of pure cow ghee in daily diet. Drink coconut water for hydration and minerals.`,
+Foods to Avoid: Avoid excess spicy and oily foods, refined sugar and processed foods, excessive alcohol and caffeine.`,
     category: "hair-care",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -263,21 +227,11 @@ Sunburn Relief: Aloe vera's anti-inflammatory compounds provide immediate relief
 
 Anti-Aging: Aloe vera stimulates collagen and elastin production, reducing fine lines and improving skin elasticity.
 
-How to use: Mix aloe vera gel with a few drops of vitamin E oil as a daily anti-aging serum.
-
-Acne Treatment: Aloe vera's salicylic acid unclogs pores while its antimicrobial properties fight acne-causing bacteria.
-
-How to use: Apply fresh aloe gel on pimples as an overnight spot treatment.
-
 Aloe Vera for Hair
 
 Scalp Health: Aloe vera's proteolytic enzymes repair dead skin cells on the scalp and create an optimal environment for hair growth.
 
-How to use: Apply aloe vera gel directly on scalp, massage gently, leave for 30 minutes before shampooing.
-
-Hair Growth: Aloe vera contains enzymes that directly promote hair follicle growth, increasing hair density and thickness over time.
-
-How to use: Mix aloe vera gel with Bhringraj oil, apply to scalp and hair, leave for 1 hour.`,
+Hair Growth: Aloe vera contains enzymes that directly promote hair follicle growth, increasing hair density and thickness over time.`,
     category: "skin-care",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -297,7 +251,7 @@ Common Causes of Hair Fall in Women
 
 Ayurvedic approach: Shatavari is Ayurveda's premier herb for women's hormonal health. Take 1/2 teaspoon with warm milk twice daily. Ashwagandha supports thyroid function and reduces cortisol levels.
 
-2. Nutritional Deficiencies: Iron deficiency anemia is extremely common in women and is a leading cause of hair fall. Vitamin D, B12, zinc, and protein deficiencies also cause significant hair loss.
+2. Nutritional Deficiencies: Iron deficiency anemia is extremely common in women and is a leading cause of hair fall.
 
 Ayurvedic approach: Take Chyawanprash daily and increase intake of iron-rich foods like dates, fenugreek leaves, and sesame seeds.
 
@@ -305,15 +259,7 @@ Ayurvedic approach: Take Chyawanprash daily and increase intake of iron-rich foo
 
 Ayurvedic approach: Practice Abhyanga (self oil massage) daily. Take Brahmi for mental calm.
 
-4. Scalp Conditions: Dandruff and scalp inflammation block follicles and prevent healthy hair growth.
-
-Ayurvedic approach: Apply neem oil mixed with coconut oil to scalp weekly. Use a Triphala hair rinse after shampooing.
-
-A Holistic Ayurvedic Hair Fall Program for Women
-
-Morning routine: Drink amla juice on empty stomach. Massage scalp with warm oil twice a week.
-
-Evening routine: Take Shatavari or Ashwagandha in warm milk. Practice meditation or deep breathing exercises.`,
+4. Scalp Conditions: Dandruff and scalp inflammation block follicles and prevent healthy hair growth.`,
     category: "hair-care",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -333,21 +279,15 @@ Wake Up Before Sunrise: Ayurveda recommends waking up 1.5 hours before sunrise. 
 
 Drink Warm Water: Immediately upon waking, drink 1-2 glasses of warm water. This activates the digestive system and flushes toxins.
 
-Tongue Scraping: Use a copper tongue scraper to remove the white coating that builds up overnight. This removes accumulated toxins and stimulates digestive organs.
+Tongue Scraping: Use a copper tongue scraper to remove the white coating that builds up overnight.
 
-Oil Pulling (Gandusha): Swish 1 tablespoon of sesame or coconut oil for 15-20 minutes. This removes bacteria from the mouth and has detoxifying effects on the whole body.
+Oil Pulling (Gandusha): Swish 1 tablespoon of sesame or coconut oil for 15-20 minutes.
 
-Abhyanga (Self Oil Massage): Warm self-massage with sesame oil before bathing nourishes the skin, calms the nervous system, and improves circulation.
+Abhyanga (Self Oil Massage): Warm self-massage with sesame oil before bathing nourishes the skin and calms the nervous system.
 
-Yoga and Pranayama: Practice 15-20 minutes of yoga followed by 10 minutes of pranayama. This awakens the body gently.
+Midday: Eat your largest meal at lunch when digestive fire is strongest.
 
-Midday Routine
-
-Eat your largest meal at lunch when digestive fire is strongest. Take a short walk after eating.
-
-Evening Routine
-
-Have a light, early dinner before 7 PM. Avoid screens 1 hour before bed. Massage feet with warm sesame oil before sleeping. Sleep by 10 PM.`,
+Evening: Have a light, early dinner before 7 PM. Sleep by 10 PM.`,
     category: "lifestyle",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -367,17 +307,15 @@ Top Ayurvedic Oils for Hair Growth
 
 How to use: Warm 2 tablespoons, massage into scalp using circular motions for 10-15 minutes, leave for 1-2 hours or overnight.
 
-2. Brahmi Oil: Benefits: Strengthens hair roots, reduces stress-related hair fall, improves scalp circulation, promotes healthy hair growth, and has a calming effect on the nervous system.
+2. Brahmi Oil: Strengthens hair roots, reduces stress-related hair fall, improves scalp circulation.
 
-3. Amla Oil: Benefits: Richest natural source of Vitamin C, essential for collagen production. Prevents premature greying, strengthens hair shaft, adds natural shine, and fights dandruff.
+3. Amla Oil: Richest natural source of Vitamin C. Prevents premature greying, strengthens hair shaft, adds natural shine.
 
-4. Castor Oil: Benefits: Dramatically increases hair thickness, stimulates hair follicles, moisturizes dry scalp. Note: best used diluted 1:1 with coconut oil.
+4. Castor Oil: Dramatically increases hair thickness, stimulates hair follicles. Best used diluted 1:1 with coconut oil.
 
-5. Neem Oil: Benefits: Eliminates dandruff, treats scalp fungal infections, reduces scalp inflammation, strengthens weak hair follicles.
+5. Neem Oil: Eliminates dandruff, treats scalp fungal infections, reduces scalp inflammation.
 
-Homemade Ayurvedic Hair Oil Recipe
-
-Heat 1 cup of sesame oil on low flame. Add 2 tablespoons each of Bhringraj powder, Brahmi powder, and Amla powder. Add 20 curry leaves and 1 tablespoon fenugreek seeds. Simmer on lowest heat for 20 minutes. Cool completely, strain, store in a glass bottle. Apply 2-3 times per week for best results.`,
+Homemade Ayurvedic Hair Oil Recipe: Heat 1 cup of sesame oil on low flame. Add Bhringraj powder, Brahmi powder, and Amla powder. Add curry leaves and fenugreek seeds. Simmer 20 minutes. Cool, strain, store in glass bottle.`,
     category: "hair-care",
     coverImageUrl: "",
     authorName: "Anuradha Sengupta",
@@ -386,8 +324,20 @@ Heat 1 cup of sesame oil on low flame. Add 2 tablespoons each of Bhringraj powde
   },
 ];
 
-// Get the canonical slugs from SEO_POSTS
+// All slugs we expect to have in the canister
 const SEO_SLUGS = SEO_POSTS.map((p) => p.slug);
+
+// Also include the slugs from the backend's seedData() so we don't double-create
+const BACKEND_SEED_SLUGS = [
+  "ayurvedic-herbs-boosting-immunity",
+  "ayurvedic-face-masks-glowing-skin",
+  "ayurvedic-hair-oils-lustrous-hair",
+  "ayurvedic-weight-management",
+  "ayurvedic-morning-rituals-dinacharya",
+  "neem-ayurveda-skin-purifier",
+  "triphala-three-fruit-wonder",
+  "coconut-oil-hair-treatments",
+];
 
 let _seedingInProgress = false;
 let _seedingDone = false;
@@ -395,12 +345,14 @@ let _seedingDone = false;
 /**
  * Waits for the canister actor to be ready, retrying up to maxAttempts times.
  */
-async function waitForActor(maxAttempts = 5, delayMs = 2000): Promise<boolean> {
+async function waitForActor(maxAttempts = 6, delayMs = 2000): Promise<boolean> {
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const actor = await getActor();
+      const actor = await getActor(1, 0);
       // Try a lightweight call to confirm the canister is responsive
-      await actor.getCategories();
+      await (
+        actor as unknown as { getCategories: () => Promise<string[]> }
+      ).getCategories();
       return true;
     } catch {
       resetActor();
@@ -424,7 +376,15 @@ export async function ensureSeedPostsExist(): Promise<void> {
       return; // Canister not ready — will retry on next page load
     }
 
-    const actor = await getActor();
+    const actor = await getActor(1, 0);
+
+    // Call seedData() first — this is idempotent on the canister side (guarded by `seeded` flag).
+    // It will add the 8 default posts if they don't exist yet.
+    try {
+      await (actor as unknown as { seedData: () => Promise<void> }).seedData();
+    } catch {
+      // seedData might fail if the canister is busy; that's OK
+    }
 
     // Fetch ALL existing posts from the canister
     let existingRaw: { slug: string }[] = [];
@@ -438,15 +398,17 @@ export async function ensureSeedPostsExist(): Promise<void> {
 
     const existingSlugs = new Set(existingRaw.map((p) => p.slug));
 
-    // Find which of the 10 SEO posts are missing
-    const missingSlugs = SEO_SLUGS.filter((slug) => !existingSlugs.has(slug));
+    // Find which of the 10 SEO posts are missing (ignore backend seed slugs, they're managed by backend)
+    const missingSlugs = SEO_SLUGS.filter(
+      (slug) => !existingSlugs.has(slug) && !BACKEND_SEED_SLUGS.includes(slug),
+    );
 
     if (missingSlugs.length === 0) {
       _seedingDone = true;
       return;
     }
 
-    // Create missing posts one at a time
+    // Create missing posts one at a time with small delays to avoid overwhelming the canister
     for (let i = 0; i < SEO_POSTS.length; i++) {
       const postData = SEO_POSTS[i];
       if (!missingSlugs.includes(postData.slug)) continue;
@@ -464,6 +426,11 @@ export async function ensureSeedPostsExist(): Promise<void> {
 
         const saved = await createOrUpdatePost(draft);
         await publishPost(saved.id);
+
+        // Small delay between posts to avoid canister rate limits
+        if (i < SEO_POSTS.length - 1) {
+          await new Promise((r) => setTimeout(r, 300));
+        }
       } catch {
         // Silently ignore individual post failures — don't break the app
       }

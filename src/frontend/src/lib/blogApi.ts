@@ -44,21 +44,48 @@ export interface FrontendComment {
 
 // ─────────────── Actor helper ──────────────────────────────────────────────
 
-let _actorPromise: ReturnType<typeof createActorWithConfig> | null = null;
+let _actor: Awaited<ReturnType<typeof createActorWithConfig>> | null = null;
+let _actorPromise: Promise<
+  Awaited<ReturnType<typeof createActorWithConfig>>
+> | null = null;
 
-export async function getActor() {
-  if (!_actorPromise) {
-    _actorPromise = createActorWithConfig().catch((err) => {
-      // Reset on failure so the next call retries
+export function resetActor() {
+  _actor = null;
+  _actorPromise = null;
+}
+
+async function createActor() {
+  if (_actor) return _actor;
+  if (_actorPromise) return _actorPromise;
+  _actorPromise = createActorWithConfig()
+    .then((a) => {
+      _actor = a;
+      _actorPromise = null;
+      return a;
+    })
+    .catch((err) => {
+      _actor = null;
       _actorPromise = null;
       throw err;
     });
-  }
   return _actorPromise;
 }
 
-export function resetActor() {
-  _actorPromise = null;
+/** Get actor, retrying up to maxAttempts times with delayMs between each */
+export async function getActor(maxAttempts = 4, delayMs = 1500) {
+  let lastErr: unknown;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      return await createActor();
+    } catch (err) {
+      lastErr = err;
+      resetActor();
+      if (i < maxAttempts - 1) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 // ─────────────── Conversion helpers ────────────────────────────────────────
@@ -84,6 +111,11 @@ function normalizeCategory(raw: string): string {
     weightmanagement: "weight-management",
     weight: "weight-management",
     lifestyle: "lifestyle",
+    // already-correct slugs pass through
+    "health-remedies": "health-remedies",
+    "skin-care": "skin-care",
+    "hair-care": "hair-care",
+    "weight-management": "weight-management",
   };
   const key = raw.toLowerCase().trim();
   return map[key] ?? raw;
