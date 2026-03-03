@@ -2,30 +2,17 @@
  * seedPosts.ts — Seeds the 10 SEO blog posts to the canister backend.
  *
  * Called once on app startup from App.tsx.
- * Silently skips if posts already exist. Never throws.
+ * Does NOT rely on actor.seedData() — creates posts directly via createPost/publishPost.
+ * Silently skips posts that already exist by slug. Never throws.
  */
 
 import {
   type FrontendBlogPost,
   createOrUpdatePost,
-  getPublishedPosts,
+  getActor,
   publishPost,
+  resetActor,
 } from "./blogApi";
-import { getActor } from "./blogApi";
-
-// The 10 canonical SEO slugs that must exist
-const SEO_SLUGS = [
-  "ayurvedic-remedies-stop-hair-fall-naturally",
-  "best-ayurvedic-herbs-glowing-skin",
-  "reduce-hair-fall-due-to-stress-ayurvedic-guide",
-  "triphala-benefits-skin-hair-digestion",
-  "home-remedies-pimples-ayurveda",
-  "ayurvedic-diet-healthy-hair-growth",
-  "aloe-vera-benefits-skin-hair-ayurveda",
-  "causes-hair-fall-women-ayurvedic-solutions",
-  "daily-ayurvedic-routine-healthy-body-mind",
-  "best-ayurvedic-oils-hair-growth-thickness",
-];
 
 type SeedPost = Omit<
   FrontendBlogPost,
@@ -35,7 +22,7 @@ type SeedPost = Omit<
 const SEO_POSTS: SeedPost[] = [
   {
     title: "Ayurvedic Remedies to Stop Hair Fall Naturally",
-    slug: "ayurvedic-remedies-stop-hair-fall-naturally",
+    slug: "ayurvedic-remedies-to-stop-hair-fall-naturally",
     excerpt:
       "Discover powerful Ayurvedic herbs and oils that have been used for centuries to stop hair fall and restore thick, healthy hair.",
     content: `Hair fall is one of the most common concerns today, affecting millions of people worldwide. Ayurveda offers time-tested natural solutions that address the root cause of hair loss rather than just the symptoms.
@@ -70,14 +57,14 @@ How to use: Soak 3 tablespoons of fenugreek seeds overnight, grind into paste, m
 
 Consistency is key with Ayurvedic remedies. Most treatments show visible results within 4-8 weeks of regular use.`,
     category: "hair-care",
-    coverImageUrl: "/assets/generated/blog-haircare.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: ["hair fall", "hair care", "ayurvedic remedies", "bhringraj", "amla"],
     inlineImages: [],
   },
   {
     title: "Best Ayurvedic Herbs for Glowing Skin",
-    slug: "best-ayurvedic-herbs-glowing-skin",
+    slug: "best-ayurvedic-herbs-for-glowing-skin",
     excerpt:
       "Unlock the secret to radiant, glowing skin with these powerful Ayurvedic herbs that have been used for thousands of years.",
     content: `In Ayurveda, beautiful skin is a reflection of inner health. True skin radiance comes from within through proper digestion, balanced doshas, and the right nourishing herbs.
@@ -112,14 +99,14 @@ Aloe vera hydrates, soothes, and heals skin. It contains over 75 active compound
 
 How to use: Apply fresh aloe vera gel directly on skin as a daily moisturizer.`,
     category: "skin-care",
-    coverImageUrl: "/assets/generated/blog-skincare.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: ["glowing skin", "skin care", "ayurvedic herbs", "turmeric", "neem"],
     inlineImages: [],
   },
   {
     title: "How to Reduce Hair Fall Due to Stress – Ayurvedic Guide",
-    slug: "reduce-hair-fall-due-to-stress-ayurvedic-guide",
+    slug: "how-to-reduce-hair-fall-due-to-stress-ayurvedic-guide",
     excerpt:
       "Stress is one of the leading causes of hair fall today. Learn how Ayurveda addresses stress-related hair loss from the root cause.",
     content: `Stress-related hair fall is one of the most common types of hair loss today. When the body is under chronic stress, it shifts resources away from non-essential functions like hair growth, pushing hair follicles into a resting phase prematurely.
@@ -144,14 +131,14 @@ Lifestyle Changes
 
 Practice daily meditation for 15-20 minutes. Do gentle yoga with poses that increase blood flow to the head. Maintain a regular sleep schedule. Increase intake of iron-rich foods like spinach, lentils, and pumpkin seeds.`,
     category: "hair-care",
-    coverImageUrl: "/assets/generated/blog-haircare.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: ["stress", "hair fall", "hair care", "ashwagandha", "brahmi"],
     inlineImages: [],
   },
   {
     title: "Triphala Benefits for Skin, Hair & Digestion",
-    slug: "triphala-benefits-skin-hair-digestion",
+    slug: "triphala-benefits-for-skin-hair-digestion",
     excerpt:
       "Triphala is Ayurveda's most celebrated herbal formula. Discover how this three-fruit combination transforms your skin, hair, and digestion.",
     content: `Triphala, meaning three fruits in Sanskrit, is considered the cornerstone formulation of Ayurvedic medicine. Used for over 3,000 years, it combines Amalaki, Bibhitaki, and Haritaki to create a synergistic blend that benefits virtually every system of the body.
@@ -178,7 +165,7 @@ Triphala for Hair
 
 Triphala strengthens hair from within by improving nutrient absorption and purifying the blood. Use as a hair rinse to reduce dandruff, add shine, and strengthen hair roots.`,
     category: "health-remedies",
-    coverImageUrl: "/assets/generated/blog-health.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: [
       "triphala",
@@ -191,7 +178,7 @@ Triphala strengthens hair from within by improving nutrient absorption and purif
   },
   {
     title: "Home Remedies for Pimples Using Ayurveda",
-    slug: "home-remedies-pimples-ayurveda",
+    slug: "home-remedies-for-pimples-using-ayurveda",
     excerpt:
       "Say goodbye to pimples naturally with these powerful Ayurvedic home remedies that target the root cause of acne.",
     content: `Pimples and acne are among the most common skin concerns, and Ayurveda offers effective natural solutions that address both the internal and external causes of breakouts.
@@ -224,14 +211,14 @@ Multani mitti absorbs excess oil, unclogs pores, and draws out impurities.
 
 Recipe: Mix 2 tablespoons multani mitti with rose water into a paste. Apply to face, leave until dry, rinse with lukewarm water.`,
     category: "skin-care",
-    coverImageUrl: "/assets/generated/blog-skincare.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: ["pimples", "acne", "skin care", "neem", "ayurvedic remedies"],
     inlineImages: [],
   },
   {
     title: "Ayurvedic Diet for Healthy Hair Growth",
-    slug: "ayurvedic-diet-healthy-hair-growth",
+    slug: "ayurvedic-diet-for-healthy-hair-growth",
     excerpt:
       "Discover the Ayurvedic principles of eating for strong, thick, lustrous hair. What you eat directly impacts your hair health.",
     content: `In Ayurveda, hair is considered a byproduct of bone tissue. Proper nutrition directly feeds hair growth and strength. Healthy hair begins with healthy digestion and the right foods.
@@ -254,14 +241,14 @@ Specific Ayurvedic Hair Growth Tonics
 
 Drink 30ml fresh amla juice daily on empty stomach. Eat 1 tablespoon of black sesame seeds daily. Include 1-2 teaspoons of pure cow ghee in daily diet. Drink coconut water for hydration and minerals.`,
     category: "hair-care",
-    coverImageUrl: "/assets/generated/blog-haircare.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: ["hair growth", "diet", "hair care", "nutrition", "ayurvedic diet"],
     inlineImages: [],
   },
   {
     title: "Aloe Vera Benefits for Skin and Hair in Ayurveda",
-    slug: "aloe-vera-benefits-skin-hair-ayurveda",
+    slug: "aloe-vera-benefits-for-skin-and-hair-in-ayurveda",
     excerpt:
       "Aloe vera, known as Kumari in Ayurveda, is one of the most versatile healing plants. Discover its remarkable benefits for skin and hair.",
     content: `Aloe vera, known as Kumari in Sanskrit, has been used in Ayurvedic medicine for over 5,000 years. Its cooling, soothing, and rejuvenating properties make it a complete beauty solution for both skin and hair.
@@ -292,14 +279,14 @@ Hair Growth: Aloe vera contains enzymes that directly promote hair follicle grow
 
 How to use: Mix aloe vera gel with Bhringraj oil, apply to scalp and hair, leave for 1 hour.`,
     category: "skin-care",
-    coverImageUrl: "/assets/generated/blog-skincare.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: ["aloe vera", "skin care", "hair care", "natural remedies", "kumari"],
     inlineImages: [],
   },
   {
     title: "Causes of Hair Fall in Women and Ayurvedic Solutions",
-    slug: "causes-hair-fall-women-ayurvedic-solutions",
+    slug: "causes-of-hair-fall-in-women-and-ayurvedic-solutions",
     excerpt:
       "Women experience hair fall due to many unique factors. Ayurveda provides targeted, holistic solutions for each underlying cause.",
     content: `Hair fall in women affects confidence and wellbeing. Ayurveda offers a comprehensive approach that addresses each specific cause.
@@ -324,18 +311,18 @@ Ayurvedic approach: Apply neem oil mixed with coconut oil to scalp weekly. Use a
 
 A Holistic Ayurvedic Hair Fall Program for Women
 
-Morning routine: Drink amla juice on empty stomach. Massage scalp with warm oil twice a week. Practice 10 minutes of scalp-targeting yoga poses.
+Morning routine: Drink amla juice on empty stomach. Massage scalp with warm oil twice a week.
 
 Evening routine: Take Shatavari or Ashwagandha in warm milk. Practice meditation or deep breathing exercises.`,
     category: "hair-care",
-    coverImageUrl: "/assets/generated/blog-haircare.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: ["hair fall", "women", "hair care", "hormonal balance", "shatavari"],
     inlineImages: [],
   },
   {
     title: "Daily Ayurvedic Routine for Healthy Body & Mind",
-    slug: "daily-ayurvedic-routine-healthy-body-mind",
+    slug: "daily-ayurvedic-routine-for-healthy-body-and-mind",
     excerpt:
       "Transform your health with Dinacharya, the Ayurvedic daily routine. A consistent routine aligned with nature's rhythms is the foundation of vibrant health.",
     content: `In Ayurveda, Dinacharya (daily routine) is considered one of the most powerful tools for maintaining health and preventing disease. When we align our daily activities with the natural rhythms of the day, the body functions optimally.
@@ -362,14 +349,14 @@ Evening Routine
 
 Have a light, early dinner before 7 PM. Avoid screens 1 hour before bed. Massage feet with warm sesame oil before sleeping. Sleep by 10 PM.`,
     category: "lifestyle",
-    coverImageUrl: "/assets/generated/blog-lifestyle.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: ["daily routine", "dinacharya", "lifestyle", "wellness", "ayurveda"],
     inlineImages: [],
   },
   {
     title: "Best Ayurvedic Oils for Hair Growth and Thickness",
-    slug: "best-ayurvedic-oils-hair-growth-thickness",
+    slug: "best-ayurvedic-oils-for-hair-growth-and-thickness",
     excerpt:
       "Discover the top Ayurvedic oils that have been used for centuries to stimulate hair growth, prevent hair fall, and create thick, lustrous hair.",
     content: `Hair oiling (Shiro Abhyanga) is a cornerstone of Ayurvedic hair care. Regular oil massage nourishes the scalp, strengthens hair roots, improves blood circulation, and creates the optimal conditions for hair growth.
@@ -392,15 +379,38 @@ Homemade Ayurvedic Hair Oil Recipe
 
 Heat 1 cup of sesame oil on low flame. Add 2 tablespoons each of Bhringraj powder, Brahmi powder, and Amla powder. Add 20 curry leaves and 1 tablespoon fenugreek seeds. Simmer on lowest heat for 20 minutes. Cool completely, strain, store in a glass bottle. Apply 2-3 times per week for best results.`,
     category: "hair-care",
-    coverImageUrl: "/assets/generated/blog-haircare.dim_800x500.jpg",
+    coverImageUrl: "",
     authorName: "Anuradha Sengupta",
     tags: ["hair oil", "hair growth", "bhringraj", "brahmi", "hair care"],
     inlineImages: [],
   },
 ];
 
+// Get the canonical slugs from SEO_POSTS
+const SEO_SLUGS = SEO_POSTS.map((p) => p.slug);
+
 let _seedingInProgress = false;
 let _seedingDone = false;
+
+/**
+ * Waits for the canister actor to be ready, retrying up to maxAttempts times.
+ */
+async function waitForActor(maxAttempts = 5, delayMs = 2000): Promise<boolean> {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const actor = await getActor();
+      // Try a lightweight call to confirm the canister is responsive
+      await actor.getCategories();
+      return true;
+    } catch {
+      resetActor();
+      if (i < maxAttempts - 1) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  return false;
+}
 
 export async function ensureSeedPostsExist(): Promise<void> {
   // Prevent concurrent calls
@@ -408,13 +418,25 @@ export async function ensureSeedPostsExist(): Promise<void> {
   _seedingInProgress = true;
 
   try {
-    // First call seedData() to populate the canister with generic seed data
-    const actor = await getActor();
-    await actor.seedData();
+    // Wait for the canister to be ready before attempting anything
+    const ready = await waitForActor();
+    if (!ready) {
+      return; // Canister not ready — will retry on next page load
+    }
 
-    // Fetch all published posts to check which SEO slugs already exist
-    const existing = await getPublishedPosts();
-    const existingSlugs = new Set(existing.map((p) => p.slug));
+    const actor = await getActor();
+
+    // Fetch ALL existing posts from the canister
+    let existingRaw: { slug: string }[] = [];
+    try {
+      existingRaw = await actor.getAllPosts();
+    } catch {
+      // If fetching fails, reset and bail — will retry on next load
+      resetActor();
+      return;
+    }
+
+    const existingSlugs = new Set(existingRaw.map((p) => p.slug));
 
     // Find which of the 10 SEO posts are missing
     const missingSlugs = SEO_SLUGS.filter((slug) => !existingSlugs.has(slug));
@@ -424,7 +446,7 @@ export async function ensureSeedPostsExist(): Promise<void> {
       return;
     }
 
-    // Create missing posts one at a time (avoid overwhelming the canister)
+    // Create missing posts one at a time
     for (let i = 0; i < SEO_POSTS.length; i++) {
       const postData = SEO_POSTS[i];
       if (!missingSlugs.includes(postData.slug)) continue;
@@ -450,6 +472,7 @@ export async function ensureSeedPostsExist(): Promise<void> {
     _seedingDone = true;
   } catch {
     // Silently ignore all errors — seeding failure must never break the app
+    _seedingDone = false;
   } finally {
     _seedingInProgress = false;
   }

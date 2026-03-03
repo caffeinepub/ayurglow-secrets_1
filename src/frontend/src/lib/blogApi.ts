@@ -48,9 +48,17 @@ let _actorPromise: ReturnType<typeof createActorWithConfig> | null = null;
 
 export async function getActor() {
   if (!_actorPromise) {
-    _actorPromise = createActorWithConfig();
+    _actorPromise = createActorWithConfig().catch((err) => {
+      // Reset on failure so the next call retries
+      _actorPromise = null;
+      throw err;
+    });
   }
   return _actorPromise;
+}
+
+export function resetActor() {
+  _actorPromise = null;
 }
 
 // ─────────────── Conversion helpers ────────────────────────────────────────
@@ -58,6 +66,27 @@ export async function getActor() {
 /** Convert bigint nanoseconds → ISO date string */
 function nsToIso(ns: bigint): string {
   return new Date(Number(ns / 1_000_000n)).toISOString();
+}
+
+/**
+ * Normalise legacy category strings (seeded before slugs were used) to slugs.
+ * e.g. "Health" -> "health-remedies", "Skin Care" -> "skin-care"
+ */
+function normalizeCategory(raw: string): string {
+  const map: Record<string, string> = {
+    health: "health-remedies",
+    "health remedies": "health-remedies",
+    "skin care": "skin-care",
+    skincare: "skin-care",
+    "hair care": "hair-care",
+    haircare: "hair-care",
+    "weight management": "weight-management",
+    weightmanagement: "weight-management",
+    weight: "weight-management",
+    lifestyle: "lifestyle",
+  };
+  const key = raw.toLowerCase().trim();
+  return map[key] ?? raw;
 }
 
 /** The prefix token used to embed inline images in the content field */
@@ -113,7 +142,7 @@ function mapPost(post: {
     slug: post.slug,
     content,
     excerpt: post.excerpt,
-    category: post.category,
+    category: normalizeCategory(post.category),
     coverImageUrl: post.coverImageUrl,
     status: post.isPublished ? "published" : "draft",
     publishedAt: post.publishedAt > 0n ? nsToIso(post.publishedAt) : null,

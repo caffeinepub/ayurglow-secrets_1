@@ -1,11 +1,12 @@
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Leaf, Loader2, Search } from "lucide-react";
+import { Leaf, Loader2, RefreshCw, Search } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PostCard from "../components/PostCard";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
-import { getPublishedPosts } from "../lib/blogApi";
+import { getPublishedPosts, resetActor } from "../lib/blogApi";
 import type { FrontendBlogPost } from "../lib/blogApi";
 import { CATEGORIES } from "../types";
 
@@ -62,17 +63,51 @@ const POSTS_PER_PAGE = 6;
 export default function BlogPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const retryCountRef = useRef(0);
+  const [retryTick, setRetryTick] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: retryTick is an intentional re-run trigger
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    getPublishedPosts()
-      .then(setPosts)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+    setLoadError(false);
+
+    const load = async () => {
+      // Retry up to 3 times with a 2 second delay
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const data = await getPublishedPosts();
+          if (!cancelled) {
+            setPosts(data);
+            setLoadError(false);
+          }
+          return;
+        } catch (err) {
+          console.error(`Failed to load posts (attempt ${attempt + 1}):`, err);
+          resetActor();
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        }
+      }
+      if (!cancelled) {
+        setPosts([]);
+        setLoadError(true);
+      }
+    };
+
+    load().finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [retryTick]);
 
   const filtered = useMemo(
     () =>
@@ -210,16 +245,45 @@ export default function BlogPage() {
 
           {/* Loading skeleton */}
           {loading && (
-            <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2
                 className="h-8 w-8 animate-spin"
                 style={{ color: "oklch(0.42 0.12 195)" }}
               />
+              <p className="text-sm text-muted-foreground">
+                Loading articles...
+              </p>
+            </div>
+          )}
+
+          {/* Error state */}
+          {!loading && loadError && (
+            <div className="text-center py-20">
+              <Leaf
+                className="h-14 w-14 mx-auto mb-4 opacity-20"
+                style={{ color: "oklch(0.42 0.12 195)" }}
+              />
+              <p className="text-muted-foreground font-medium mb-2">
+                Could not load articles
+              </p>
+              <p className="text-sm text-muted-foreground mb-5">
+                The server may be starting up. Please try again.
+              </p>
+              <Button
+                onClick={() => {
+                  retryCountRef.current += 1;
+                  setRetryTick((t) => t + 1);
+                }}
+                style={{ background: "oklch(0.42 0.12 195)", color: "white" }}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
             </div>
           )}
 
           {/* Grid */}
-          {!loading && paginated.length === 0 ? (
+          {!loading && !loadError && paginated.length === 0 ? (
             <div className="text-center py-20">
               <Leaf
                 className="h-14 w-14 mx-auto mb-4 opacity-20"
@@ -234,7 +298,7 @@ export default function BlogPage() {
                   : "Check back soon for new content"}
               </p>
             </div>
-          ) : !loading ? (
+          ) : !loading && !loadError ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {paginated.map((post, i) => (
                 <PostCard

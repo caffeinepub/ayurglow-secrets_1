@@ -179,6 +179,7 @@ import {
   createOrUpdatePost,
   getAllPosts,
   getCommentsByPost,
+  resetActor,
 } from "../lib/blogApi";
 import type { FrontendBlogPost, FrontendComment } from "../lib/blogApi";
 import type { InlineImage } from "../types";
@@ -292,6 +293,7 @@ export default function AdminPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
   const [form, setForm] = useState<PostFormData>(EMPTY_FORM);
@@ -309,6 +311,7 @@ export default function AdminPage() {
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const refreshData = useCallback(async () => {
+    setLoadError(null);
     try {
       const allPosts = await getAllPosts();
       setPosts(allPosts);
@@ -321,7 +324,13 @@ export default function AdminPage() {
       setComments(allComments);
     } catch (err) {
       console.error("Failed to load admin data:", err);
-      toast.error("Failed to load posts from canister");
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Failed to load posts from canister";
+      setLoadError(msg);
+      resetActor();
+      toast.error("Failed to load posts from canister. Please try again.");
     }
   }, []);
 
@@ -670,6 +679,30 @@ export default function AdminPage() {
                           className="h-8 w-8 animate-spin"
                           style={{ color: "oklch(0.42 0.12 195)" }}
                         />
+                      </div>
+                    ) : loadError ? (
+                      <div className="text-center py-20 rounded-xl border border-dashed border-destructive/30">
+                        <FileText className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                        <p className="text-destructive font-medium mb-2">
+                          Failed to load posts from canister
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
+                          The canister may be initialising. Please wait a moment
+                          and try again.
+                        </p>
+                        <Button
+                          onClick={() => {
+                            setIsLoading(true);
+                            refreshData().finally(() => setIsLoading(false));
+                          }}
+                          style={{
+                            background: "oklch(0.42 0.12 195)",
+                            color: "white",
+                          }}
+                        >
+                          <Loader2 className="h-4 w-4 mr-2" />
+                          Retry
+                        </Button>
                       </div>
                     ) : posts.length === 0 ? (
                       <div className="text-center py-20 rounded-xl border border-dashed border-border">

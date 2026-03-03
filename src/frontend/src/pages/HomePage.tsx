@@ -57,9 +57,29 @@ export default function HomePage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
 
   useEffect(() => {
-    getPublishedPosts()
-      .then((all) => setPosts(all.slice(0, 6)))
-      .catch(console.error);
+    let cancelled = false;
+    const load = async () => {
+      // Retry up to 3 times with a 2 second delay to handle slow canister startup
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const all = await getPublishedPosts();
+          if (!cancelled) setPosts(all.slice(0, 6));
+          return;
+        } catch (err) {
+          console.error(
+            `HomePage: failed to load posts (attempt ${attempt + 1}):`,
+            err,
+          );
+          const { resetActor: reset } = await import("../lib/blogApi");
+          reset();
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
