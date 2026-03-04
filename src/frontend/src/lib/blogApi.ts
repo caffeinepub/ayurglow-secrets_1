@@ -126,23 +126,21 @@ function normalizeCategory(raw: string): string {
 const IMAGES_PREFIX_REGEX = /^\[IMAGES:([A-Za-z0-9+/=]+)\]\n\n?/;
 
 /** Encode inline images into a content prefix.
- *  IMPORTANT: strips the `url` field so base64 data never goes to the canister.
- *  Only metadata (id, size, alt, caption) is stored; urls are re-hydrated from
- *  IndexedDB on read.
+ *  Stores the full image metadata including the HTTP URL (from blob storage).
+ *  The URL is an HTTP URL (not base64), so it is safe to store in the canister.
  */
 function encodeImagesPrefix(images: InlineImage[], content: string): string {
   if (!images || images.length === 0) return content;
   try {
-    // Strip base64 urls before encoding — only persist metadata to canister
-    const stripped = images.map(({ id, size, alt, caption }) => ({
+    // Include the url field — images now use HTTP URLs from blob storage, not base64
+    const toStore = images.map(({ id, url, size, alt, caption }) => ({
       id,
+      url: url ?? "",
       size,
       alt,
       caption,
     }));
-    const encoded = btoa(
-      unescape(encodeURIComponent(JSON.stringify(stripped))),
-    );
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(toStore))));
     return `[IMAGES:${encoded}]\n\n${content}`;
   } catch {
     return content;
@@ -220,38 +218,39 @@ function mapComment(comment: {
 // ─────────────── Image re-hydration ────────────────────────────────────────
 
 /**
- * Re-hydrate image data from IndexedDB into a post that was loaded from the
- * canister (which never stores base64 data).
+ * Re-hydrate image URLs for a post loaded from the canister.
  *
- * - Cover image: stored under key `cover_<postId>`
- * - Inline images: stored under key `<img.id>`
+ * - If a cover/inline image already has an HTTP URL (from blob storage), use it directly.
+ * - For legacy posts where URLs were stripped, fall back to IndexedDB lookup.
  *
- * Gracefully falls back to the existing value (empty string / undefined) when
- * the image is not in IndexedDB (e.g. the user is visiting from a different
- * browser or the image was never uploaded on this device).
+ * Gracefully falls back when no data is found.
  */
 export async function rehydratePostImages(
   post: FrontendBlogPost,
 ): Promise<FrontendBlogPost> {
-  // Fetch cover + all inline images in parallel
-  const coverKey = `cover_${post.id}`;
-  const inlineKeys = (post.inlineImages ?? []).map((img) => img.id);
+  // Cover image: use existing URL if it's an HTTP URL, otherwise check IndexedDB
+  let coverUrl = post.coverImageUrl || "";
+  if (!coverUrl.startsWith("http")) {
+    const coverKey = `cover_${post.id}`;
+    const coverData = await loadImage(coverKey).catch(() => null);
+    coverUrl = coverData ?? coverUrl;
+  }
 
-  const [coverData, ...inlineData] = await Promise.all([
-    loadImage(coverKey).catch(() => null),
-    ...inlineKeys.map((key) => loadImage(key).catch(() => null)),
-  ]);
-
-  const rehydratedCover = coverData ?? (post.coverImageUrl || "");
-
-  const rehydratedInlineImages = (post.inlineImages ?? []).map((img, idx) => ({
-    ...img,
-    url: inlineData[idx] ?? img.url ?? "",
-  }));
+  // Inline images: use URL from decoded data if it's an HTTP URL, otherwise check IndexedDB
+  const rehydratedInlineImages = await Promise.all(
+    (post.inlineImages ?? []).map(async (img) => {
+      if (img.url?.startsWith("http")) {
+        return img; // Already has a valid HTTP URL from blob storage
+      }
+      // Legacy: try IndexedDB
+      const storedUrl = await loadImage(img.id).catch(() => null);
+      return { ...img, url: storedUrl ?? img.url ?? "" };
+    }),
+  );
 
   return {
     ...post,
-    coverImageUrl: rehydratedCover,
+    coverImageUrl: coverUrl,
     inlineImages: rehydratedInlineImages,
   };
 }

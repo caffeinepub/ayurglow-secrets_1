@@ -38,6 +38,8 @@ export async function uploadImageToBlob(
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<string> {
+  // Reset the cached client on each upload to avoid stale agent/config issues
+  _storageClient = null;
   const storageClient = await getStorageClient();
   const bytes = new Uint8Array(await file.arrayBuffer());
   const { hash } = await storageClient.putFile(bytes, onProgress);

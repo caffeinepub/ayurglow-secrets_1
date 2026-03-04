@@ -362,8 +362,10 @@ export default function AdminPage() {
       setForm((prev) => ({ ...prev, coverImageUrl: url }));
       setCoverUploadProgress(0);
       toast.success("Cover image uploaded successfully");
-    } catch {
-      toast.error("Failed to upload image. Please try again.");
+    } catch (err) {
+      console.error("Cover image upload error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Image upload failed: ${msg.slice(0, 120)}`);
     } finally {
       setCoverUploading(false);
       setCoverUploadProgress(0);
@@ -384,8 +386,10 @@ export default function AdminPage() {
       setInlineImgFile(url);
       setInlineUploadProgress(0);
       toast.success("Image ready to add");
-    } catch {
-      toast.error("Failed to upload image. Please try again.");
+    } catch (err) {
+      console.error("Inline image upload error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Image upload failed: ${msg.slice(0, 120)}`);
     } finally {
       setInlineUploading(false);
       setInlineUploadProgress(0);
