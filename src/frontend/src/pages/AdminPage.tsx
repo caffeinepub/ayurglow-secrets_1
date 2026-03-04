@@ -172,6 +172,7 @@ function FormattingToolbar({
 import { toast } from "sonner";
 import SiteFooter from "../components/SiteFooter";
 import SiteHeader from "../components/SiteHeader";
+import { uploadImageToBlob } from "../lib/blobStorage";
 import {
   deletePost as apiDeletePost,
   publishPost as apiPublishPost,
@@ -214,42 +215,6 @@ function formatDate(dateStr: string | null) {
   } catch {
     return dateStr;
   }
-}
-
-// Compress image to stay well under localStorage limits (~300 KB per image)
-function compressImage(
-  file: File,
-  maxWidth = 1200,
-  quality = 0.7,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onerror = reject;
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let { width, height } = img;
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("Canvas not supported"));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL("image/jpeg", quality);
-        resolve(compressed);
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
 }
 
 // ─────────────── types ─────────────────────────────────────────────────────
@@ -298,7 +263,9 @@ export default function AdminPage() {
   const [form, setForm] = useState<PostFormData>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [coverUploadProgress, setCoverUploadProgress] = useState(0);
   const [inlineUploading, setInlineUploading] = useState(false);
+  const [inlineUploadProgress, setInlineUploadProgress] = useState(0);
 
   // Inline image form
   const [inlineImgFile, setInlineImgFile] = useState<string>("");
@@ -381,37 +348,47 @@ export default function AdminPage() {
     refreshData().catch(console.error);
   };
 
-  // Cover image upload
+  // Cover image upload — uploads to blob storage so all visitors can see it
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
     setCoverUploading(true);
+    setCoverUploadProgress(0);
     try {
-      const compressed = await compressImage(file);
-      setForm((prev) => ({ ...prev, coverImageUrl: compressed }));
-      toast.success("Cover image uploaded");
+      const url = await uploadImageToBlob(file, (pct) => {
+        setCoverUploadProgress(pct);
+      });
+      setForm((prev) => ({ ...prev, coverImageUrl: url }));
+      setCoverUploadProgress(0);
+      toast.success("Cover image uploaded successfully");
     } catch {
-      toast.error("Failed to upload image. Please try a smaller file.");
+      toast.error("Failed to upload image. Please try again.");
     } finally {
       setCoverUploading(false);
+      setCoverUploadProgress(0);
     }
   };
 
-  // Inline image upload
+  // Inline image upload — uploads to blob storage so all visitors can see it
   const handleInlineUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
     setInlineUploading(true);
+    setInlineUploadProgress(0);
     try {
-      const compressed = await compressImage(file);
-      setInlineImgFile(compressed);
+      const url = await uploadImageToBlob(file, (pct) => {
+        setInlineUploadProgress(pct);
+      });
+      setInlineImgFile(url);
+      setInlineUploadProgress(0);
       toast.success("Image ready to add");
     } catch {
-      toast.error("Failed to load image. Please try a smaller file.");
+      toast.error("Failed to upload image. Please try again.");
     } finally {
       setInlineUploading(false);
+      setInlineUploadProgress(0);
     }
   };
 
@@ -504,8 +481,8 @@ export default function AdminPage() {
 
       const saved = await createOrUpdatePost(post);
 
-      // If the user wants to publish and the post was just created (draft by default on canister),
-      // call publishPost explicitly
+      // Images are now HTTP URLs stored in blob storage — no IndexedDB saves needed.
+      // Just publish the post if required.
       if (status === "published") {
         await apiPublishPost(saved.id);
       }
@@ -930,12 +907,33 @@ export default function AdminPage() {
                           </button>
                         </div>
                       )}
-                      <label className="cursor-pointer">
-                        <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 px-4 text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
+                      <label
+                        className={
+                          coverUploading
+                            ? "cursor-not-allowed"
+                            : "cursor-pointer"
+                        }
+                      >
+                        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 px-4 text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
                           {coverUploading ? (
                             <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Uploading...
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                {coverUploadProgress > 0
+                                  ? `Uploading... ${coverUploadProgress}%`
+                                  : "Uploading..."}
+                              </div>
+                              {coverUploadProgress > 0 && (
+                                <div className="w-full max-w-xs h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-200"
+                                    style={{
+                                      width: `${coverUploadProgress}%`,
+                                      background: "oklch(0.50 0.14 165)",
+                                    }}
+                                  />
+                                </div>
+                              )}
                             </>
                           ) : (
                             <>
@@ -1133,17 +1131,34 @@ export default function AdminPage() {
                       style={{ background: "oklch(0.975 0.008 148)" }}
                     >
                       <div className="flex items-center gap-3">
-                        <label className="cursor-pointer flex-1">
-                          <div className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 px-4 text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
+                        <label
+                          className={`flex-1 ${inlineUploading ? "cursor-not-allowed" : "cursor-pointer"}`}
+                        >
+                          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border py-3 px-4 text-sm text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
                             {inlineUploading ? (
                               <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Loading...
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  {inlineUploadProgress > 0
+                                    ? `Uploading... ${inlineUploadProgress}%`
+                                    : "Uploading..."}
+                                </div>
+                                {inlineUploadProgress > 0 && (
+                                  <div className="w-full max-w-xs h-1.5 bg-muted rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-200"
+                                      style={{
+                                        width: `${inlineUploadProgress}%`,
+                                        background: "oklch(0.50 0.14 165)",
+                                      }}
+                                    />
+                                  </div>
+                                )}
                               </>
                             ) : inlineImgFile ? (
                               <>
                                 <Check className="h-4 w-4 text-green-600" />
-                                Image loaded — configure below
+                                Image uploaded — configure below
                               </>
                             ) : (
                               <>

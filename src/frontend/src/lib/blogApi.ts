@@ -14,6 +14,7 @@
 
 import { createActorWithConfig } from "../config";
 import type { InlineImage } from "../types";
+import { loadImage } from "./imageDb";
 
 // ─────────────── Frontend types ────────────────────────────────────────────
 
@@ -124,11 +125,24 @@ function normalizeCategory(raw: string): string {
 /** The prefix token used to embed inline images in the content field */
 const IMAGES_PREFIX_REGEX = /^\[IMAGES:([A-Za-z0-9+/=]+)\]\n\n?/;
 
-/** Encode inline images into a content prefix */
+/** Encode inline images into a content prefix.
+ *  IMPORTANT: strips the `url` field so base64 data never goes to the canister.
+ *  Only metadata (id, size, alt, caption) is stored; urls are re-hydrated from
+ *  IndexedDB on read.
+ */
 function encodeImagesPrefix(images: InlineImage[], content: string): string {
   if (!images || images.length === 0) return content;
   try {
-    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(images))));
+    // Strip base64 urls before encoding — only persist metadata to canister
+    const stripped = images.map(({ id, size, alt, caption }) => ({
+      id,
+      size,
+      alt,
+      caption,
+    }));
+    const encoded = btoa(
+      unescape(encodeURIComponent(JSON.stringify(stripped))),
+    );
     return `[IMAGES:${encoded}]\n\n${content}`;
   } catch {
     return content;
@@ -203,6 +217,45 @@ function mapComment(comment: {
   };
 }
 
+// ─────────────── Image re-hydration ────────────────────────────────────────
+
+/**
+ * Re-hydrate image data from IndexedDB into a post that was loaded from the
+ * canister (which never stores base64 data).
+ *
+ * - Cover image: stored under key `cover_<postId>`
+ * - Inline images: stored under key `<img.id>`
+ *
+ * Gracefully falls back to the existing value (empty string / undefined) when
+ * the image is not in IndexedDB (e.g. the user is visiting from a different
+ * browser or the image was never uploaded on this device).
+ */
+export async function rehydratePostImages(
+  post: FrontendBlogPost,
+): Promise<FrontendBlogPost> {
+  // Fetch cover + all inline images in parallel
+  const coverKey = `cover_${post.id}`;
+  const inlineKeys = (post.inlineImages ?? []).map((img) => img.id);
+
+  const [coverData, ...inlineData] = await Promise.all([
+    loadImage(coverKey).catch(() => null),
+    ...inlineKeys.map((key) => loadImage(key).catch(() => null)),
+  ]);
+
+  const rehydratedCover = coverData ?? (post.coverImageUrl || "");
+
+  const rehydratedInlineImages = (post.inlineImages ?? []).map((img, idx) => ({
+    ...img,
+    url: inlineData[idx] ?? img.url ?? "",
+  }));
+
+  return {
+    ...post,
+    coverImageUrl: rehydratedCover,
+    inlineImages: rehydratedInlineImages,
+  };
+}
+
 // ─────────────── Public API ────────────────────────────────────────────────
 
 export async function getAllPosts(): Promise<FrontendBlogPost[]> {
@@ -252,6 +305,8 @@ export async function createOrUpdatePost(
 
   const isNew = post.id.startsWith("new_") || Number.isNaN(Number(post.id));
 
+  // Images are now HTTP URLs from blob-storage, safe to send directly to
+  // canister (no base64 stripping needed).
   if (isNew) {
     const created = await actor.createPost(
       post.title,
